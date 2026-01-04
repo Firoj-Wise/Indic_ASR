@@ -1,0 +1,22 @@
+[project]
+name = "indic-conformer-asr-testing"
+version = "0.1.0"
+description = "Indic Conformer ASR Testing API"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "transformers",
+    "torch",
+    "torchaudio",
+    "python-multipart",
+    "librosa",
+    "soundfile",
+    "numpy",
+    "python-dotenv",
+    "onnx",
+    "onnxruntime-gpu",
+]
+
+[tool.uv]

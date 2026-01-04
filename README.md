@@ -49,20 +49,17 @@ This command will:
 2.  Mount the local `models/` directory to persist downloaded weights.
 3.  Expose the API on port 8000.
 
+
 ### Local Execution
 
-For development environments without Docker:
+This project uses `uv` for dependency management.
 
 ```bash
-# Create virtual environment
-python -m venv venv
-source venv/bin/activate  # or .\venv\Scripts\activate on Windows
-
 # Install dependencies
-pip install -r requirements.txt
+uv sync
 
 # Start the server
-python main.py
+uv run main.py
 ```
 
 ## API Reference
