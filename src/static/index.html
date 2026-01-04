@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Recorder</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #007AFF;
+            --danger: #FF3B30;
+            --gray-100: #F2F2F7;
+            --gray-800: #1C1C1E;
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.4);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gray-800);
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 420px;
+            padding: 40px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--glass-border);
+            text-align: center;
+            transition: transform 0.3s ease;
+        }
+
+        h1 {
+            font-weight: 600;
+            font-size: 24px;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        p.subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        /* Language Selector */
+        .select-wrapper {
+            position: relative;
+            margin-bottom: 32px;
+        }
+
+        select {
+            appearance: none;
+            width: 100%;
+            padding: 12px 16px;
+            font-size: 16px;
+            font-family: inherit;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            color: var(--gray-800);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            outline: none;
+        }
+
+        select:hover {
+            border-color: rgba(0, 0, 0, 0.2);
+        }
+
+        select:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
+        }
+
+        /* Microphone Button */
+        .mic-btn-container {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 32px;
+        }
+
+        .mic-btn {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: #fff;
+            border: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+        }
+
+        .mic-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+        }
+
+        .mic-btn svg {
+            width: 32px;
+            height: 32px;
+            fill: var(--primary);
+            transition: fill 0.3s ease;
+        }
+
+        .mic-btn.recording {
+            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+            background: var(--danger);
+        }
+
+        .mic-btn.recording svg {
+            fill: #fff;
+        }
+
+        @keyframes pulse-ring {
+            0% {
+                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7);
+            }
+
+            70% {
+                box-shadow: 0 0 0 20px rgba(255, 59, 48, 0);
+            }
+
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+            }
+        }
+
+        /* Status & Result */
+        #status {
+            font-size: 14px;
+            font-weight: 500;
+            height: 20px;
+            color: #888;
+            margin-bottom: 24px;
+        }
+
+        #result {
+            min-height: 80px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--gray-800);
+            text-align: left;
+            word-wrap: break-word;
+        }
+
+        .loader {
+            display: none;
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(0, 122, 255, 0.2);
+            border-top-color: var(--primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px auto;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <h1>IndicRecorder</h1>
+        <p class="subtitle">AI-Powered Speech to Text</p>
+
+        <div class="select-wrapper">
+            <select id="language">
+                <option value="ne">Nepali (नेपाली)</option>
+                <option value="hi" selected>Hindi (हिंदी)</option>
+                <option value="mai">Maithili (मैथिली)</option>
+            </select>
+        </div>
+
+        <div class="mic-btn-container">
+            <button id="recordBtn" class="mic-btn">
+                <svg viewBox="0 0 24 24">
+                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
+                    <path
+                        d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
+                </svg>
+            </button>
+        </div>
+
+        <div id="status">Tap microphone to start</div>
+        <div class="loader" id="loader"></div>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        const recordBtn = document.getElementById('recordBtn');
+        const statusEl = document.getElementById('status');
+        const resultEl = document.getElementById('result');
+        const loader = document.getElementById('loader');
+        const langSelect = document.getElementById('language');
+
+        let mediaRecorder;
+        let audioChunks = [];
+        let isRecording = false;
+
+        recordBtn.addEventListener('click', async () => {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+
+                audioChunks = [];
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = sendAudio;
+
+                mediaRecorder.start();
+                isRecording = true;
+                recordBtn.classList.add('recording');
+                statusEl.textContent = "Listening...";
+                statusEl.style.color = "#FF3B30";
+                resultEl.textContent = "";
+            } catch (err) {
+                console.error("Mic access denied:", err);
+                statusEl.textContent = "Microphone access denied.";
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+                recordBtn.classList.remove('recording');
+                statusEl.textContent = "Processing...";
+                statusEl.style.color = "#007AFF";
+                loader.style.display = "block";
+            }
+        }
+
+        async function sendAudio() {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const formData = new FormData();
+            formData.append("file", audioBlob, "recording.wav");
+
+            const lang = langSelect.value;
+            const url = `/transcribe?language=${lang}`;
+
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    resultEl.textContent = data.transcription;
+                    statusEl.textContent = "Ready";
+                } else {
+                    resultEl.textContent = "Transcription failed.";
+                    statusEl.textContent = "Error";
+                }
+            } catch (error) {
+                console.error("Error:", error);
+                resultEl.textContent = "Network error.";
+                statusEl.textContent = "Error";
+            } finally {
+                loader.style.display = "none";
+                statusEl.style.color = "#888";
+            }
+        }
+    </script>
+</body>
+
+</html>

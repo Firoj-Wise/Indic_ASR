@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    container_name: indic-asr-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the local models directory to persist downloaded weights
+      - ./models:/app/models
+      # Mount logs directory
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - HF_HOME=/app/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    restart: unless-stopped

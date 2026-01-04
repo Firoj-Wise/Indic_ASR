@@ -1,0 +1,17 @@
+# Ignore model weights (mounted via volume)
+models/
+
+# Ignore virtual environment
+venv/
+.venv/
+
+# Ignore git
+.git/
+.gitignore
+
+# Ignore logs and temp files
+logs/
+temp_uploads/
+__pycache__/
+*.pyc
+.env
