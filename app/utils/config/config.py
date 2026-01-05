@@ -7,7 +7,8 @@ load_dotenv()
 
 class Config:
     # Base Directory (Project Root)
-    BASE_DIR = Path(__file__).resolve().parent.parent
+    # app/utils/config/config.py -> app/utils/config -> app/utils -> app -> root
+    BASE_DIR = Path(__file__).resolve().parent.parent.parent.parent
     
     # Force Hugging Face to use local models directory
     # This ensures "everything is in the container"

@@ -1,8 +1,8 @@
 import torch
 import librosa
 from transformers import AutoModel
-from .config import Config
-from .logger import LOGGER
+from app.utils.config.config import Config
+from app.utils.logger_utils import LOGGER
 
 class IndicConformerASR:
     def __init__(self):
@@ -57,21 +57,17 @@ class IndicConformerASR:
             
             # Load audio using librosa
             # The model's preprocessor expects 16kHz audio
-            audio_array, _ = librosa.load(audio_path, sr=16000)
+            audio_array, _ = librosa.load(audio_path, sr=Config.SAMPLING_RATE)
             
             # Convert to torch tensor
-            audio_tensor = torch.tensor(audio_array).unsqueeze(0) # Batch dimension (1, T)? 
-            # model_onnx.py: input_signal=wav.to(self.d) ... length=torch.tensor([wav.shape[-1]])
-            # It seems to expect (Batch, Time) or just (Time)?
-            # In encode(self, wav): wav.shape[-1] suggests last dim is time.
-            # Let's assume standard (1, Length).
+            audio_tensor = torch.tensor(audio_array).unsqueeze(0) # Batch dimension (1, T)
             
             # Perform inference
-            # The model's forward method: forward(self, wav, lang, decoding='ctc', ...)
-            # It returns the transcription string directly!
-            
             transcription = self.model(audio_tensor, language_id)
             
+            if not transcription:
+                raise ValueError("Model returned empty transcription.")
+
             return transcription
 
         except Exception as e:

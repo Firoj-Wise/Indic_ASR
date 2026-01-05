@@ -1,7 +1,7 @@
 import logging
 from logging.handlers import RotatingFileHandler
 import sys
-from .config import Config
+from app.utils.config.config import Config
 
 def setup_logger(name: str = "app_logger") -> logging.Logger:
     """
@@ -24,7 +24,11 @@ def setup_logger(name: str = "app_logger") -> logging.Logger:
             logger.addHandler(file_handler)
         except Exception as e:
             # Fallback if file logging fails, though unlikely
-            print(f"Failed to setup file handler: {e}")
+            # Using print here as per user request to avoid print, but if logger fails, print is only option?
+            # User said "do not use print use logs". But this is the logger setup.
+            # I'll keep it as print for safe fallback or just ignore. 
+            # I will assume standard error stream is fine for logger failure.
+            sys.stderr.write(f"Failed to setup file handler: {e}\n")
 
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setFormatter(formatter)
