@@ -39,7 +39,7 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
     
     LOGGER.info(f"Loading dataset: {dataset_name} [{subset}, split='test'] (Streaming)...")
     try:
-        ds = load_dataset(dataset_name, subset, split="test", streaming=True, trust_remote_code=True)
+        ds = load_dataset(dataset_name, subset, split="test", streaming=True)
     except Exception as e:
         LOGGER.error(f"Failed to load dataset: {e}")
         return
@@ -69,9 +69,9 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
             if samples > 0 and i >= samples:
                 break
                 
-            # Sample structure: {'id': ..., 'audio': {'path': ..., 'array': ..., 'sampling_rate': ...}, 'transcription': ...}
+            # Sample structure: {'id': ..., 'audio': {'path': ..., 'array': ..., 'sampling_rate': ...}, 'text': ...}
             audio_data = sample['audio']
-            reference_text = sample['transcription']
+            reference_text = sample['text']
             
             # Save audio to temp file
             # We use soundfile to save the array
