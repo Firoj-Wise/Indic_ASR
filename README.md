@@ -1,4 +1,4 @@
-# Indic ASR API
+# Indic ASR API & Benchmarking
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.95.1-009688?style=flat-square&logo=fastapi&logoColor=white)
@@ -8,77 +8,87 @@
 
 ## Overview
 
-This project provides a robust, containerized REST API for automatic speech recognition (ASR) focused on Indian languages. It encapsulates advanced acoustic modeling within a high-performance web server, designed to simplify the integration of speech-to-text capabilities into broader applications.
+This project provides a robust, containerized REST API for automatic speech recognition (ASR) focused on Indian languages. It encapsulates advanced acoustic modeling within a high-performance web server.
 
-The system is built on a modular architecture that separates model inference, API routing, and configuration management. It leverages GPU acceleration to ensure low-latency transcription, making it suitable for near real-time use cases.
+The codebase has been refactored into a modular `app/` structure and includes a comprehensive **benchmarking suite** to evaluate model performance (CER/WER) on the `ai4bharat/indicvoices_r` dataset.
 
-## Core Capabilities
+## Directory Structure
 
-### High-Performance Inference
-The engine utilizes CUDA-optimized kernels to perform rapid audio decoding and feature extraction. By offloading matrix operations to the GPU, the system achieves significant throughput improvements compared to CPU-only execution, especially when processing batch requests.
+```
+.
+├── app/
+│   ├── api/            # API Routers (Endpoints)
+│   ├── services/       # Business Logic (Model Loading)
+│   ├── utils/          # Config, Logging, Metrics
+│   ├── static/         # Frontend UI Assets
+│   └── main.py         # Application Entry Point
+├── scripts/
+│   └── benchmark.py    # Benchmarking Script
+├── models/             # Local Model Storage (Volume Mounted)
+├── logs/               # Application Logs
+├── colab_benchmark.ipynb # Google Colab Notebook
+├── compose.yaml        # Docker Compose
+└── pyproject.toml      # Project Dependencies (uv)
+```
 
-### Containerization and Isolation
-The entire application stack, including system dependencies (ffmpeg, libsndfile) and Python environments, is defined within a Docker container. This ensures complete reproducibility and eliminates "works on my machine" issues. Deep learning weights are persisted via volume mounting, preventing unnecessary redownloads while maintaining container ephemerality.
+## Getting Started
 
-### Interactive User Interface
-A custom-built web interface is served directly by the API. Designed with a modern, minimal aesthetic, it interfaces with the browser's MediaRecorder API to capture audio streams at the correct sampling rate and submit them for processing. This allows for immediate testing and demonstration without the need for external tools like cURL or Postman.
+### 1. Local Development (uv)
 
-## Architecture
+This project uses `uv` for ultra-fast dependency management.
 
-The system follows a layered architecture:
+```bash
+# 1. Install dependencies
+uv sync
 
-1.  **Transport Layer (FastAPI)**: Handles HTTP request validation, multipart file parsing, and response serialization.
-2.  **Service Layer**: Manages the lifecycle of the ASR engine, ensuring models are loaded into memory only once during startup.
-3.  **Inference Layer**:
-    -   **Preprocessing**: Resamples arbitrary input audio to 16kHz mono.
-    -   **Encoding**: Passes normalized audio tensors through a Conformer-based encoder.
-    -   **Decoding**: Maps output logits to characters using Connectionist Temporal Classification (CTC).
+# 2. Run the server
+# The entry point is now app.main:app
+uv run uvicorn app.main:app --reload
 
-## Deployment
+# 3. Access API
+# Swagger UI: http://localhost:8000/docs
+# Recorder UI: http://localhost:8000/ui
+```
 
-### Docker (Recommended)
-
-Deployment is managed via Docker Compose, which handles port mapping:
+### 2. Docker Deployment
 
 ```bash
 docker-compose up --build
 ```
+This mounts the local `models/` directory, persisting large weights across container restarts.
 
-This command will:
-1.  Build the image using the NVIDIA CUDA base.
-2.  Mount the local `models/` directory to persist downloaded weights.
-3.  Expose the API on port 8000.
+## Benchmarking (New!)
 
+You can benchmark the model against the **IndicVoices** dataset (Nepali, Hindi, Maithili).
 
-### Local Execution
+### Run on Google Colab (Recommended)
+1.  Upload `colab_benchmark.ipynb` to Google Colab.
+2.  Follow the instructions in the notebook.
+3.  **Note**: Ensure you use a T4 GPU runtime.
 
-This project uses `uv` for dependency management.
-
+### Run Locally
 ```bash
-# Install dependencies
-uv sync
+# Example: Benchmark Nepali on the 'Nepali' subset
+python scripts/benchmark.py --language ne --subset Nepali --samples 50
 
-# Start the server
-uv run main.py
+# Example: Benchmark Hindi
+python scripts/benchmark.py --language hi --subset Hindi
 ```
+
+Results are saved to `benchmark_results.csv`.
 
 ## API Reference
 
 ### Transcribe Audio
 **Endpoint**: `POST /transcribe`
 
-Accepts a binary audio file (WAV, MP3, FLAC) and limits processing to the specified language.
+Accepts a binary audio file (WAV, MP3, FLAC) and language code.
 
 **Parameters**:
 - `file`: The audio file object.
-- `language`: ISO code (e.g., `ne` for Nepali, `hi` for Hindi, `mai` for Maithili).
+- `language`: `ne` (Nepali), `hi` (Hindi), `mai` (Maithili).
 
 ### Health Check
 **Endpoint**: `GET /`
 
-Returns the operational status of the service and links to documentation.
-
-### User Interface
-**Endpoint**: `GET /ui`
-
-Renders the HTML5 recording interface.
+Returns the operational status.

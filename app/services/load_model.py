@@ -3,6 +3,7 @@ import librosa
 from transformers import AutoModel
 from app.utils.config.config import Config
 from app.utils.logger_utils import LOGGER
+from app.constants import log_msg
 
 class IndicConformerASR:
     def __init__(self):
@@ -14,7 +15,7 @@ class IndicConformerASR:
         self.device = Config.DEVICE_CUDA if torch.cuda.is_available() else Config.DEVICE_CPU
         self.token = Config.HF_TOKEN
 
-        LOGGER.info(f"Initializing model: {self.model_id} on device: {self.device}")
+        LOGGER.info(log_msg.ASR_MODEL_INIT.format(self.model_id, self.device))
         
         if not self.token:
              LOGGER.warning("HF_TOKEN missing. Gated model access may fail.")
@@ -29,16 +30,16 @@ class IndicConformerASR:
                 "token": self.token
             }
 
-            LOGGER.info("Loading model (this might trigger internal download)...")
+            LOGGER.info(log_msg.ASR_MODEL_LOAD_START)
             self.model = AutoModel.from_pretrained(**load_kwargs)
             
             # The generic AutoModel wrapping might store the custom model in .model or match it directly
             # Based on model_onnx.py, from_pretrained returns the instance directly.
             
-            LOGGER.info("Model loaded successfully.")
+            LOGGER.info(log_msg.ASR_MODEL_LOAD_SUCCESS)
             
         except Exception as e:
-            LOGGER.error(f"Failed to load model: {e}")
+            LOGGER.error(log_msg.ASR_MODEL_LOAD_FAIL.format(e))
             raise e
 
     def transcribe(self, audio_path: str, language_id: str = "hi") -> str:
@@ -53,7 +54,7 @@ class IndicConformerASR:
             str: Transcribed text.
         """
         try:
-            LOGGER.info(f"Processing {audio_path} [Lang: {language_id}]")
+            LOGGER.info(log_msg.ASR_PROCESSING_START.format(audio_path, language_id))
             
             # Load audio using librosa
             # The model's preprocessor expects 16kHz audio
@@ -71,5 +72,5 @@ class IndicConformerASR:
             return transcription
 
         except Exception as e:
-            LOGGER.error(f"Inference failed for {audio_path}: {e}")
+            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e))
             raise e

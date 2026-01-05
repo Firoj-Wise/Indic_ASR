@@ -8,14 +8,15 @@ from app.utils.logger_utils import LOGGER
 from app.services.load_model import IndicConformerASR
 from app.services.model_registry import model_container
 from app.api import index_router, asr_router
+from app.constants import log_msg
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    LOGGER.info("Server starting up...")
+    LOGGER.info(log_msg.SERVER_STARTUP)
     try:
         model_container["asr"] = IndicConformerASR()
     except Exception as e:
-        LOGGER.critical(f"Startup failure: {e}")
+        LOGGER.critical(log_msg.STARTUP_FAILURE.format(e))
         # We might want to re-raise to stop server start if critical model fails
         # But keeping old behavior of just logging mostly, though user said "throw something"
         # in general context. For lifespan, catching and logging is often safer than crash loop, 
@@ -24,7 +25,7 @@ async def lifespan(app: FastAPI):
     
     yield
     
-    LOGGER.info("Server shutting down...")
+    LOGGER.info(log_msg.SERVER_SHUTDOWN)
     model_container.clear()
 
 app = FastAPI(

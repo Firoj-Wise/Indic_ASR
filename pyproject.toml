@@ -17,6 +17,9 @@ dependencies = [
     "python-dotenv",
     "onnx",
     "onnxruntime-gpu",
+    "datasets",
+    "jiwer",
+    "pandas",
 ]
 
 [tool.uv]
