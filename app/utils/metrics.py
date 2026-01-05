@@ -1,14 +1,14 @@
 import jiwer
 import re
+import string
 from app.utils.logger_utils import LOGGER
 from app.constants import log_msg
 
 def normalize_text(text: str) -> str:
     """
     Normalizes text for ASR evaluation.
-    - Removes punctuation (mostly).
-    - Collapses multiple spaces.
-    - Strips leading/trailing whitespace.
+    - Removes punctuation (Standard + Danda).
+    - Removes all whitespace (for split-word robustness).
     
     Args:
         text (str): Input text.
@@ -20,12 +20,13 @@ def normalize_text(text: str) -> str:
         LOGGER.warning(log_msg.WARN_EMPTY_TEXT_NORM)
         return ""
     
-    # Remove common punctuation but keep intra-word characters if needed
-    # For Indic languages, we might want to be careful.
-    # A simple regex for basic punctuation removal:
-    # This regex removes characters that are NOT alphanumeric and NOT whitespace.
-    # Note: \w in Python regex matches Unicode word characters (including Devanagari).
-    text = re.sub(r'[^\w\s]', '', text)
+    # Define punctuation to remove: standard + Indic Dandas + common separators
+    # We avoid [^\w\s] regex because it can strip Indic vowel signs (Matras).
+    punctuation = string.punctuation + "।" + "॥" + "–" + "—"
+    
+    # Remove punctuation using translate
+    translator = str.maketrans('', '', punctuation)
+    text = text.translate(translator)
     
     # Remove all whitespace to handle split-word issues (e.g., 'परि पाठी' -> 'परिपाठी')
     text = re.sub(r'\s+', '', text)
@@ -51,15 +52,3 @@ def calculate_cer(reference: str, hypothesis: str) -> float:
         return 1.0 if hyp_norm else 0.0
         
     return jiwer.cer(ref_norm, hyp_norm)
-
-def calculate_wer(reference: str, hypothesis: str) -> float:
-    """
-    Calculates Word Error Rate (WER).
-    """
-    ref_norm = normalize_text(reference)
-    hyp_norm = normalize_text(hypothesis)
-    
-    if not ref_norm:
-        return 1.0 if hyp_norm else 0.0
-
-    return jiwer.wer(ref_norm, hyp_norm)

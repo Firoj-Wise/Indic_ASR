@@ -11,7 +11,7 @@ import time
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from app.services.load_model import IndicConformerASR
-from app.utils.metrics import calculate_cer, calculate_wer
+from app.utils.metrics import calculate_cer
 from app.utils.logger_utils import LOGGER
 
 def benchmark(language: str, subset: str = None, samples: int = 100, output_csv: str = "benchmark_results.csv"):
@@ -51,7 +51,6 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
     iterator = iter(ds)
     
     total_cer = 0.0
-    total_wer = 0.0
     count = 0
     
     # Create a temporary directory for audio files if needed 
@@ -91,10 +90,8 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
             
             # Calculate Metrics
             cer = calculate_cer(reference_text, hypothesis_text)
-            wer = calculate_wer(reference_text, hypothesis_text)
             
             total_cer += cer
-            total_wer += wer
             count += 1
             
             results.append({
@@ -102,7 +99,6 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
                 "reference": reference_text,
                 "hypothesis": hypothesis_text,
                 "cer": cer,
-                "wer": wer,
                 "duration": duration
             })
             
@@ -125,10 +121,8 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
     # Save Results
     if count > 0:
         avg_cer = total_cer / count
-        avg_wer = total_wer / count
         LOGGER.info(f"Benchmarking Complete.")
         LOGGER.info(f"Average CER: {avg_cer:.4%}")
-        LOGGER.info(f"Average WER: {avg_wer:.4%}")
         
         df = pd.DataFrame(results)
         df.to_csv(output_csv, index=False)
