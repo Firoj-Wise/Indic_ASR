@@ -24,34 +24,21 @@ async def transcribe_audio(
         LOGGER.error(log_msg.ERR_ASR_MODEL_NOT_FOUND)
         raise HTTPException(status_code=503, detail="ASR Model invalid or not loaded.")
 
-    file_ext = os.path.splitext(file.filename)[1]
-    if not file_ext:
-        file_ext = ".wav" # Default for blob uploads
-        
-    temp_path = Config.TEMP_DIR / f"temp_{os.urandom(8).hex()}{file_ext}"
-
     try:
-        LOGGER.info(log_msg.ASR_PROCESSING_START.format(file.filename, language.value))
-        
-        with open(temp_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Read file into memory
+        audio_bytes = await file.read()
+        import io
+        audio_file = io.BytesIO(audio_bytes)
             
-        transcription = asr_model.transcribe(str(temp_path), language_id=language.value)
+        # Transcribe directly from memory
+        transcription = asr_model.transcribe(audio_file, language_id=language.value)
         
         return {
-            "filename": file.filename, 
+            "filename": "stream", 
             "transcription": transcription, 
             "language": language.value
         }
 
     except Exception as e:
         LOGGER.error(f"Processing error: {e}")
-        # Ensure we don't return empty, but raise HTTP exception
         raise HTTPException(status_code=500, detail=log_msg.ERR_INTERNAL_PROCESSING)
-        
-    finally:
-        if temp_path.exists():
-            try:
-                os.remove(temp_path)
-            except Exception:
-                pass

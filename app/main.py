@@ -47,6 +47,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Embedder-Policy"] = "require-corp"
+    return response
+
 # Mount Static Files
 # directory="app/static" because we will move src/static to app/static
 app.mount("/static", StaticFiles(directory="app/static"), name="static")

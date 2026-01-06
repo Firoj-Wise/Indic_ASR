@@ -1,3 +1,5 @@
+import io
+import soundfile as sf
 import torch
 import librosa
 from transformers import AutoModel
@@ -42,35 +44,45 @@ class IndicConformerASR:
             LOGGER.error(log_msg.ASR_MODEL_LOAD_FAIL.format(e))
             raise e
 
-    def transcribe(self, audio_path: str, language_id: str = "hi") -> str:
+    def transcribe(self, audio_data, language_id: str = "hi") -> str:
         """
-        Transcribes the given audio file into text using the specified language.
+        Transcribes the given audio data into text using the specified language.
         
         Args:
-            audio_path: Absolute path to the audio file.
+            audio_data: BytesIO object or path (str) containing audio data.
             language_id: ISO language code (e.g., 'hi', 'ne', 'mai').
             
         Returns:
             str: Transcribed text.
         """
         try:
-            LOGGER.info(log_msg.ASR_PROCESSING_START.format(audio_path, language_id))
+            # LOGGER.info(log_msg.ASR_PROCESSING_START.format("MEMORY_STREAM", language_id))
             
-            # Load audio using librosa
-            # The model's preprocessor expects 16kHz audio
-            audio_array, _ = librosa.load(audio_path, sr=Config.SAMPLING_RATE)
-            
+            # Load audio from bytes or path
+            # Using soundfile is faster and supports file-like objects natively
+            if isinstance(audio_data, str):
+                audio_array, _ = librosa.load(audio_data, sr=Config.SAMPLING_RATE)
+            else:
+                 # audio_data is likely BytesIO from UploadFile
+                 # sf.read returns (data, samplerate)
+                 audio_array, sr = sf.read(audio_data)
+                 # Resample if needed using librosa (only if SR differs provided)
+                 # Ideally client sends correct SR, but safe to resample
+                 if sr != Config.SAMPLING_RATE:
+                     audio_array = librosa.resample(audio_array, orig_sr=sr, target_sr=Config.SAMPLING_RATE)
+
             # Convert to torch tensor
-            audio_tensor = torch.tensor(audio_array).unsqueeze(0) # Batch dimension (1, T)
+            audio_tensor = torch.tensor(audio_array).float().unsqueeze(0) # Batch dimension (1, T)
             
             # Perform inference
             transcription = self.model(audio_tensor, language_id)
             
             if not transcription:
-                raise ValueError("Model returned empty transcription.")
+                # raise ValueError("Model returned empty transcription.")
+                return "" # Return empty string instead of error for VAD silence
 
             return transcription
 
         except Exception as e:
-            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e))
+            LOGGER.error(f"Inference Logic Error: {e}")
             raise e

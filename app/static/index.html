@@ -4,300 +4,398 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Voice Recorder</title>
+    <title>Voice Assistant</title>
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        :root {
-            --primary: #007AFF;
-            --danger: #FF3B30;
-            --gray-100: #F2F2F7;
-            --gray-800: #1C1C1E;
-            --glass-bg: rgba(255, 255, 255, 0.65);
-            --glass-border: rgba(255, 255, 255, 0.4);
-        }
-
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            font-family: 'Inter', sans-serif;
+            background-color: #0d0d0d;
+            color: #ffffff;
             height: 100vh;
-            margin: 0;
             display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--gray-800);
+            flex-direction: column;
             overflow: hidden;
         }
 
-        .container {
-            width: 100%;
-            max-width: 420px;
-            padding: 40px;
-            background: var(--glass-bg);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border-radius: 24px;
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--glass-border);
-            text-align: center;
-            transition: transform 0.3s ease;
-        }
-
-        h1 {
-            font-weight: 600;
-            font-size: 24px;
-            margin-bottom: 8px;
-            letter-spacing: -0.5px;
-        }
-
-        p.subtitle {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 32px;
-        }
-
-        /* Language Selector */
-        .select-wrapper {
+        /* Voice Orb Animation */
+        .orb-container {
             position: relative;
-            margin-bottom: 32px;
-        }
-
-        select {
-            appearance: none;
-            width: 100%;
-            padding: 12px 16px;
-            font-size: 16px;
-            font-family: inherit;
-            background: rgba(255, 255, 255, 0.8);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            border-radius: 12px;
-            color: var(--gray-800);
-            cursor: pointer;
-            transition: all 0.2s ease;
-            outline: none;
-        }
-
-        select:hover {
-            border-color: rgba(0, 0, 0, 0.2);
-        }
-
-        select:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.1);
-        }
-
-        /* Microphone Button */
-        .mic-btn-container {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 32px;
-        }
-
-        .mic-btn {
-            width: 80px;
-            height: 80px;
-            border-radius: 50%;
-            background: #fff;
-            border: none;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-            cursor: pointer;
+            width: 120px;
+            height: 120px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-            position: relative;
+            cursor: pointer;
+            transition: transform 0.3s ease;
         }
 
-        .mic-btn:hover {
+        .orb-container:hover {
             transform: scale(1.05);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
         }
 
-        .mic-btn svg {
-            width: 32px;
-            height: 32px;
-            fill: var(--primary);
-            transition: fill 0.3s ease;
+        .orb {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #4285f4, #9b72cb, #d96570);
+            background-size: 200% 200%;
+            animation: gradient-spin 5s ease infinite;
+            filter: blur(10px);
+            opacity: 0.8;
+            transition: all 0.5s ease;
         }
 
-        .mic-btn.recording {
-            animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
-            background: var(--danger);
+        .orb-core {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            z-index: 10;
         }
 
-        .mic-btn.recording svg {
-            fill: #fff;
+        /* Active/Listening State */
+        .orb-container.listening .orb {
+            width: 120px;
+            height: 120px;
+            filter: blur(20px);
+            opacity: 1;
+            animation: gradient-spin 2s ease infinite, pulse-listening 2s infinite;
         }
 
-        @keyframes pulse-ring {
+        /* Processing State */
+        .orb-container.processing .orb {
+            width: 100px;
+            height: 100px;
+            filter: blur(15px);
+            animation: gradient-spin 1s linear infinite;
+        }
+
+        @keyframes gradient-spin {
             0% {
-                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7);
+                background-position: 0% 50%;
             }
 
-            70% {
-                box-shadow: 0 0 0 20px rgba(255, 59, 48, 0);
+            50% {
+                background-position: 100% 50%;
             }
 
             100% {
-                box-shadow: 0 0 0 0 rgba(255, 59, 48, 0);
+                background-position: 0% 50%;
             }
         }
 
-        /* Status & Result */
-        #status {
-            font-size: 14px;
-            font-weight: 500;
-            height: 20px;
-            color: #888;
-            margin-bottom: 24px;
+        @keyframes pulse-listening {
+            0% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
+
+            50% {
+                transform: scale(1.1);
+                opacity: 1;
+            }
+
+            100% {
+                transform: scale(0.95);
+                opacity: 0.8;
+            }
         }
 
-        #result {
-            min-height: 80px;
-            padding: 16px;
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 12px;
-            border: 1px solid rgba(0, 0, 0, 0.05);
-            font-size: 16px;
-            line-height: 1.5;
-            color: var(--gray-800);
-            text-align: left;
-            word-wrap: break-word;
+        /* Result Box Layout */
+        .result-area {
+            flex: 1;
+            padding: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .loader {
-            display: none;
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(0, 122, 255, 0.2);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px auto;
+        textarea {
+            width: 100%;
+            height: 100%;
+            max-width: 800px;
+            background: rgba(28, 28, 30, 0.6);
+            border: 1px solid #333;
+            border-radius: 20px;
+            padding: 24px;
+            font-size: 24px;
+            line-height: 1.6;
+            color: #fff;
+            resize: none;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
-        @keyframes spin {
+        textarea:focus {
+            border-color: #0A84FF;
+            background: rgba(28, 28, 30, 0.8);
+        }
+
+        textarea::placeholder {
+            color: #555;
+        }
+
+        @keyframes fade-in {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
             to {
-                transform: rotate(360deg);
+                opacity: 1;
+                transform: translateY(0);
             }
+        }
+
+        /* Bottom Controls */
+        .controls {
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            background: linear-gradient(to top, #0d0d0d 80%, transparent);
+        }
+
+        select {
+            background: #1c1c1e;
+            color: white;
+            border: 1px solid #333;
+            padding: 8px 16px;
+            border-radius: 20px;
+            outline: none;
+            cursor: pointer;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="container">
-        <h1>IndicRecorder</h1>
-        <p class="subtitle">AI-Powered Speech to Text</p>
-
-        <div class="select-wrapper">
-            <select id="language">
-                <option value="ne">Nepali (नेपाली)</option>
-                <option value="hi" selected>Hindi (हिंदी)</option>
-                <option value="mai">Maithili (मैथिली)</option>
-            </select>
-        </div>
-
-        <div class="mic-btn-container">
-            <button id="recordBtn" class="mic-btn">
-                <svg viewBox="0 0 24 24">
-                    <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z" />
-                    <path
-                        d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                </svg>
-            </button>
-        </div>
-
-        <div id="status">Tap microphone to start</div>
-        <div class="loader" id="loader"></div>
-        <div id="result"></div>
+    <div class="result-area">
+        <textarea id="resultBox" placeholder="Transcription will appear here..." readonly></textarea>
     </div>
 
+    <div class="controls">
+        <div id="orb" class="orb-container">
+            <div class="orb"></div>
+            <div class="orb-core"></div>
+        </div>
+
+        <div id="status" style="color: #666; font-size: 14px; min-height: 20px;">Ready</div>
+
+        <select id="language">
+            <option value="ne">Nepali (नेपाली)</option>
+            <option value="hi" selected>Hindi (हिंदी)</option>
+            <option value="mai">Maithili (मैथिली)</option>
+        </select>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.14.0/dist/ort.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@ricky0123/vad-web@0.0.22/dist/bundle.min.js"></script>
     <script>
-        const recordBtn = document.getElementById('recordBtn');
+        // Explicitly set WASM paths for ONNX Runtime Web to load from local static directory
+        ort.env.wasm.wasmPaths = {
+            'ort-wasm.wasm': '/static/ort-wasm.wasm',
+            'ort-wasm-simd.wasm': '/static/ort-wasm-simd.wasm',
+            'ort-wasm-threaded.wasm': '/static/ort-wasm-threaded.wasm',
+            'ort-wasm-simd-threaded.wasm': '/static/ort-wasm-simd-threaded.wasm'
+        };
+    </script>
+
+    <script>
+        const orb = document.getElementById('orb');
         const statusEl = document.getElementById('status');
-        const resultEl = document.getElementById('result');
-        const loader = document.getElementById('loader');
+        const resultBox = document.getElementById('resultBox');
         const langSelect = document.getElementById('language');
 
-        let mediaRecorder;
-        let audioChunks = [];
-        let isRecording = false;
+        let vadInstance = null;
+        let isListening = false;
 
-        recordBtn.addEventListener('click', async () => {
-            if (!isRecording) {
-                startRecording();
+        // Audio Queue System
+        let audioQueue = [];
+        let isProcessing = false;
+
+        orb.addEventListener('click', async () => {
+            if (!isListening) {
+                await startVAD();
             } else {
-                stopRecording();
+                await stopVAD();
             }
         });
 
-        async function startRecording() {
+        function updateStatus(text, type = 'normal') {
+            statusEl.textContent = text;
+            if (type === 'error') statusEl.style.color = '#FF453A';
+            else if (type === 'active') statusEl.style.color = '#0A84FF';
+            else statusEl.style.color = '#666';
+        }
+
+        async function startVAD() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                updateStatus("Initializing...");
 
-                audioChunks = [];
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
+                vadInstance = await vad.MicVAD.new({
+                    model: "v5", // Explicitly use Silero V5
+                    // Tuned parameters for "Live" feel - More sensitive
+                    positiveSpeechThreshold: 0.5, // Default is 0.5, we had 0.6. Back to 0.5 for better pickup.
+                    negativeSpeechThreshold: 0.35, // Slightly lower to keep looking longer.
+                    minSpeechFrames: 5,     // ~150ms 
+                    redemptionFrames: 10,   // Reduced slightly to send chunks faster after speech ends
+                    preSpeechPadFrames: 20,
 
-                mediaRecorder.onstop = sendAudio;
+                    onSpeechStart: () => {
+                        console.log("Speech started");
+                        updateStatus("Listening...", 'active');
+                        orb.classList.add('listening');
+                        orb.classList.remove('processing');
+                    },
+                    onSpeechEnd: (audio) => {
+                        console.log("Speech ended");
+                        // Transition visuals
+                        orb.classList.remove('listening');
+                        orb.classList.add('processing');
 
-                mediaRecorder.start();
-                isRecording = true;
-                recordBtn.classList.add('recording');
-                statusEl.textContent = "Listening...";
-                statusEl.style.color = "#FF3B30";
-                resultEl.textContent = "";
+                        // Add to queue logic
+                        if (audio.length > 0) {
+                            audioQueue.push(audio);
+                            processQueue();
+                        }
+                    },
+                    onVADMisfire: () => {
+                        console.log("VAD misfire");
+                        orb.classList.remove('listening');
+                    }
+                });
+
+                vadInstance.start();
+                isListening = true;
+                orb.classList.add('active');
+                updateStatus("Listening...");
+                resultBox.placeholder = "Listening...";
+
             } catch (err) {
-                console.error("Mic access denied:", err);
-                statusEl.textContent = "Microphone access denied.";
+                console.error("VAD init failed:", err);
+
+                let errorMsg = err.message || err;
+
+                // Specific check for SharedArrayBuffer/Headers issue
+                if (!window.crossOriginIsolated) {
+                    errorMsg = "Missing Security Headers (COOP/COEP). SharedArrayBuffer is not available.";
+                }
+
+                updateStatus(`Error: ${errorMsg}`, 'error');
             }
         }
 
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                recordBtn.classList.remove('recording');
-                statusEl.textContent = "Processing...";
-                statusEl.style.color = "#007AFF";
-                loader.style.display = "block";
+        async function stopVAD() {
+            if (vadInstance && isListening) {
+                vadInstance.pause();
+                isListening = false;
+                orb.classList.remove('listening');
+                orb.classList.remove('processing');
+                orb.classList.remove('active');
+                updateStatus("Ready");
+                resultBox.placeholder = "Transcription will appear here...";
             }
         }
 
-        async function sendAudio() {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        async function processQueue() {
+            if (isProcessing || audioQueue.length === 0) return;
+
+            isProcessing = true;
+            const audioFloat32 = audioQueue.shift();
+
+            try {
+                await processAudio(audioFloat32);
+            } catch (err) {
+                console.error("Queue processing error:", err);
+            } finally {
+                isProcessing = false;
+                // Check if more items arrived while processing
+                if (audioQueue.length > 0) {
+                    processQueue();
+                } else {
+                    // Queue finished
+                    orb.classList.remove('processing');
+                    if (isListening) {
+                        // Ensure we show listening state if still active
+                        // But practically VAD handles the 'listening' class on speech start
+                        // We just clean up 'processing' class
+                    }
+                }
+            }
+        }
+
+        async function processAudio(audioFloat32) {
+            const wavBlob = float32ToWav(audioFloat32);
             const formData = new FormData();
-            formData.append("file", audioBlob, "recording.wav");
-
+            formData.append("file", wavBlob, "recording.wav");
             const lang = langSelect.value;
             const url = `/transcribe?language=${lang}`;
 
             try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    body: formData
-                });
-
+                const response = await fetch(url, { method: 'POST', body: formData });
                 if (response.ok) {
                     const data = await response.json();
-                    resultEl.textContent = data.transcription;
-                    statusEl.textContent = "Ready";
+                    if (data.transcription) {
+                        const newText = data.transcription;
+                        // Append to text box
+                        if (resultBox.value.length > 0) {
+                            resultBox.value += " " + newText;
+                        } else {
+                            resultBox.value = newText;
+                        }
+                        // Auto scroll to bottom
+                        resultBox.scrollTop = resultBox.scrollHeight;
+                    }
                 } else {
-                    resultEl.textContent = "Transcription failed.";
-                    statusEl.textContent = "Error";
+                    console.error("Server error");
                 }
             } catch (error) {
-                console.error("Error:", error);
-                resultEl.textContent = "Network error.";
-                statusEl.textContent = "Error";
-            } finally {
-                loader.style.display = "none";
-                statusEl.style.color = "#888";
+                console.error("Network error:", error);
+            }
+        }
+
+        // --- WAV Helpers ---
+        function float32ToWav(samples) {
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, 16000, true);
+            view.setUint32(28, 16000 * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+            floatTo16BitPCM(view, 44, samples);
+            return new Blob([view], { type: 'audio/wav' });
+        }
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        function floatTo16BitPCM(output, offset, input) {
+            for (let i = 0; i < input.length; i++, offset += 2) {
+                let s = Math.max(-1, Math.min(1, input[i]));
+                s = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                output.setInt16(offset, s, true);
             }
         }
     </script>
