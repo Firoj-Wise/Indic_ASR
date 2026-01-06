@@ -63,14 +63,35 @@ class IndicConformerASR:
             # Convert to torch tensor
             audio_tensor = torch.tensor(audio_array).unsqueeze(0) # Batch dimension (1, T)
             
+            return self.transcribe_tensor(audio_tensor, language_id)
+
+        except Exception as e:
+            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e))
+            raise e
+
+    def transcribe_tensor(self, audio_tensor: torch.Tensor, language_id: str = "hi") -> str:
+        """
+        Transcribes the given audio tensor into text.
+        
+        Args:
+            audio_tensor: Tensor of shape (1, T) containing 16kHz audio.
+            language_id: ISO language code.
+            
+        Returns:
+            str: Transcribed text.
+        """
+        try:
             # Perform inference
             transcription = self.model(audio_tensor, language_id)
             
             if not transcription:
-                raise ValueError("Model returned empty transcription.")
+                # Instead of raising, we might return empty string for chunks meant to silence
+                # But for now, keeping consistency with original logic, or maybe just return empty string
+                return "" 
 
             return transcription
-
+            
         except Exception as e:
-            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e))
+            # We log but re-raise so the caller handles it
+            LOGGER.error(f"Tensor inference failed: {e}")
             raise e
