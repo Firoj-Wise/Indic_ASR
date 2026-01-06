@@ -20,6 +20,9 @@ dependencies = [
     "datasets",
     "jiwer",
     "pandas",
+    "pipecat-ai[local]>=0.0.36",
+    "websockets>=15.0.1",
+    "loguru>=0.7.0",
 ]
 
 [tool.uv]

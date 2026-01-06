@@ -1,9 +1,10 @@
 from fastapi import APIRouter, UploadFile, File, HTTPException, WebSocket, WebSocketDisconnect
-from typing import Dict, Any
+from typing import Dict, Any, List
 import shutil
 import os
 import numpy as np
 import torch
+import json
 from app.utils.config.config import Config
 from app.utils.logger_utils import LOGGER
 from app.services.model_registry import model_container
@@ -11,6 +12,40 @@ from app.constants.enums import Language
 from app.constants import log_msg
 
 router = APIRouter()
+
+# --- Global State & Connection Manager ---
+
+class GlobalAppState:
+    def __init__(self):
+        self.current_language: Language = Language.hindi
+
+app_state = GlobalAppState()
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: List[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast(self, message: dict):
+        # Convert dict to JSON string once
+        payload = json.dumps(message)
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(payload)
+            except Exception:
+                # If sending fails, we might want to remove the dead connection, 
+                # but disconnect handle usually catches it.
+                pass
+
+manager = ConnectionManager()
+
 
 @router.post("/transcribe", tags=["ASR"], summary="Transcribe Audio", response_description="Transcription result")
 async def transcribe_audio(
@@ -48,7 +83,6 @@ async def transcribe_audio(
 
     except Exception as e:
         LOGGER.error(f"Processing error: {e}")
-        # Ensure we don't return empty, but raise HTTP exception
         raise HTTPException(status_code=500, detail=log_msg.ERR_INTERNAL_PROCESSING)
         
     finally:
@@ -60,72 +94,99 @@ async def transcribe_audio(
 
 
 @router.websocket("/transcribe/ws")
-async def transcribe_audio_stream(websocket: WebSocket, language: Language = Language.hindi):
+async def transcribe_audio_stream(websocket: WebSocket, language: Language = None) -> None:
     """
     Streaming ASR WebSocket Endpoint.
     
-    Expects raw PCM16 audio bytes (16000Hz, Mono, 16-bit little-endian).
-    Accumulates chunks and runs inference periodically.
-    """
-    await websocket.accept()
-    
-    asr_model = model_container.get("asr")
-    if not asr_model:
-        await websocket.close(code=1011, reason="ASR Model not loaded")
-        return
+    Handles:
+        - Binary Audio Data: For transcription.
+        - JSON Config Data: For changing global language.
+        - Broadcasting: Sends transcripts to ALL connected clients.
 
-    # Buffer for accumulating audio chunks
-    # We'll use a simple list of bytes and concat, or pre-allocate bytearray
-    audio_buffer = bytearray()
-    
-    # 16kHz * 2 bytes/sample * 2 seconds = 64000 bytes
-    BUFFER_THRESHOLD = 64000 
-    
+    Args:
+        websocket (WebSocket): The active WebSocket connection.
+        language (Language, optional): Initial language hint. Defaults to None.
+    """
     try:
+        await manager.connect(websocket)
+        logger_context = f"Client={websocket.client.host}:{websocket.client.port}"
+        LOGGER.info(log_msg.LOG_ENTRY.format("transcribe_audio_stream", logger_context))
+        
+        current_lang = app_state.current_language
+        await websocket.send_json({"type": "config", "language": current_lang.value})
+        
+        asr_model = model_container.get("asr")
+        if not asr_model:
+            LOGGER.error(log_msg.ERR_ASR_MODEL_NOT_FOUND)
+            await websocket.close(code=1011, reason="ASR Model not loaded")
+            return
+
+        # Buffer for accumulating audio chunks
+        audio_buffer = bytearray()
+        BUFFER_THRESHOLD = 64000 
+        
         while True:
-            data = await websocket.receive_bytes()
-            audio_buffer.extend(data)
-            
-            if len(audio_buffer) >= BUFFER_THRESHOLD:
-                # Process the buffered audio
-                # Convert bytes to numpy float32 array
-                # raw bytes -> int16 -> float32
-                audio_np = np.frombuffer(audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
+            try:
+                message = await websocket.receive()
                 
-                # Check for silence or very short length?
-                # For now, just transcribe everything
-                
-                tensor = torch.from_numpy(audio_np).unsqueeze(0) # (1, T)
-                
-                try:
-                    # Run inference
-                    # Note: This runs on the main thread loop if not careful. 
-                    # Ideally, should run in executor if it blocks too long.
-                    # But Conformer is fast enough on GPU for short chunks usually.
-                    transcription = asr_model.transcribe_tensor(tensor, language_id=language)
-                    
-                    if transcription:
-                        await websocket.send_json({
-                            "type": "transcription",
-                            "text": transcription,
-                            "language": language
-                        })
+                if message["type"] == "websocket.receive":
+                    if "bytes" in message and message["bytes"]:
+                        data = message["bytes"]
+                        audio_buffer.extend(data)
                         
-                except Exception as e:
-                    LOGGER.error(f"Streaming inference error: {e}")
-                    await websocket.send_json({"type": "error", "message": str(e)})
-                
-                # Clear buffer after processing
-                # Note: In a real streaming scenario ("VAD"), we might keep some overlap 
-                # or wait for silence. Here we simple-drain.
-                audio_buffer = bytearray()
-                
-    except WebSocketDisconnect:
-        LOGGER.info("WebSocket disconnected")
+                        if len(audio_buffer) >= BUFFER_THRESHOLD:
+                            # Process buffer: int16 -> float32
+                            audio_np = np.frombuffer(audio_buffer, dtype=np.int16).astype(np.float32) / 32768.0
+                            tensor = torch.from_numpy(audio_np).unsqueeze(0)
+                            
+                            try:
+                                transcription = asr_model.transcribe_tensor(tensor, language_id=app_state.current_language.value)
+                                
+                                if transcription:
+                                    await manager.broadcast({
+                                        "type": "transcription",
+                                        "text": transcription,
+                                        "language": app_state.current_language.value,
+                                        "source": "stream" 
+                                    })
+                                    
+                            except Exception as e:
+                                LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format("stream", e))
+                                await websocket.send_json({"type": "error", "message": f"Inference failed: {str(e)}"})
+                            
+                            audio_buffer = bytearray()
+
+                    if "text" in message and message["text"]:
+                        try:
+                            data = json.loads(message["text"])
+                            if data.get("type") == "config":
+                                new_lang = data.get("language")
+                                if new_lang in [l.value for l in Language]:
+                                    LOGGER.info(log_msg.CONFIG_LANG_UPDATE.format(new_lang))
+                                    app_state.current_language = Language(new_lang)
+                                    await manager.broadcast({
+                                        "type": "config",
+                                        "language": new_lang
+                                    })
+                        except json.JSONDecodeError:
+                            LOGGER.warning(log_msg.CONFIG_INVALID_JSON)
+                        except Exception as e:
+                            LOGGER.error(log_msg.CONFIG_PROCESS_ERROR.format(e))
+                            await websocket.send_json({"type": "error", "message": "Invalid config data"})
+
+            except WebSocketDisconnect:
+                LOGGER.info(log_msg.WS_DISCONNECTED)
+                manager.disconnect(websocket)
+                break
+            except Exception as e:
+                LOGGER.error(log_msg.WS_RECEIVE_ERROR.format(e))
+                await websocket.send_json({"type": "error", "message": "Internal processing error"})
+                break
+
     except Exception as e:
-        LOGGER.error(f"WebSocket connection error: {e}")
-        # Try to close if still open
-        try:
-            await websocket.close()
-        except:
-            pass
+        LOGGER.error(log_msg.LOG_ERROR.format("transcribe_audio_stream", str(e)), exc_info=True)
+        manager.disconnect(websocket)
+        raise e
+    finally:
+        LOGGER.info(log_msg.LOG_EXIT.format("transcribe_audio_stream"))
+    return None

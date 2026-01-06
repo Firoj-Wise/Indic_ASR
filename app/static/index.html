@@ -156,6 +156,8 @@
 
         #result {
             min-height: 80px;
+            max-height: 400px;
+            overflow-y: auto;
             padding: 16px;
             background: rgba(255, 255, 255, 0.5);
             border-radius: 12px;
@@ -165,6 +167,9 @@
             color: var(--gray-800);
             text-align: left;
             word-wrap: break-word;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .loader {
@@ -222,82 +227,175 @@
         const loader = document.getElementById('loader');
         const langSelect = document.getElementById('language');
 
-        let mediaRecorder;
-        let audioChunks = [];
         let isRecording = false;
+        let audioContext;
+        let processor;
+        let input;
+        let globalStream;
+        let websocket;
+
+        const TARGET_SAMPLE_RATE = 16000;
+
+        // Connect immediately on load to receive broadcasts
+        connectWebSocket();
 
         recordBtn.addEventListener('click', async () => {
             if (!isRecording) {
-                startRecording();
+                startAudioCapture();
             } else {
-                stopRecording();
+                stopAudioCapture();
             }
         });
 
-        async function startRecording() {
+        langSelect.addEventListener('change', () => {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({
+                    type: "config",
+                    language: langSelect.value
+                }));
+            }
+        });
+
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            // We don't send lang in URL anymore, we wait for config or sync
+            const wsUrl = `${protocol}//${window.location.host}/transcribe/ws`;
+
+            websocket = new WebSocket(wsUrl);
+
+            websocket.onopen = () => {
+                console.log("Connected to Control Stream");
+                statusEl.textContent = "Connected (Monitoring)";
+                statusEl.style.color = "#007AFF";
+            };
+
+            websocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'transcription' && data.text) {
+                    // Append new text with a space
+                    resultEl.textContent += (resultEl.textContent ? " " : "") + data.text;
+                    resultEl.scrollTop = resultEl.scrollHeight;
+                }
+
+                if (data.type === 'config' && data.language) {
+                    // Update our dropdown to match server state
+                    langSelect.value = data.language;
+                    console.log("Synced language to:", data.language);
+                }
+            };
+
+            websocket.onerror = (error) => {
+                console.error("WS Error:", error);
+                statusEl.textContent = "Connection Error";
+            };
+
+            websocket.onclose = () => {
+                statusEl.textContent = "Disconnected. Reconnecting...";
+                setTimeout(connectWebSocket, 3000);
+            };
+        }
+
+        async function startAudioCapture() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                mediaRecorder = new MediaRecorder(stream);
+                if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                    alert("Not connected to server!");
+                    return;
+                }
 
-                audioChunks = [];
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
+                // 1. Get Microphone
+                globalStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-                mediaRecorder.onstop = sendAudio;
+                // 2. Setup Audio Context
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                input = audioContext.createMediaStreamSource(globalStream);
 
-                mediaRecorder.start();
+                // Start processing audio
+                setupAudioProcessor();
+
                 isRecording = true;
                 recordBtn.classList.add('recording');
-                statusEl.textContent = "Listening...";
+                statusEl.textContent = "Broadcasting Audio...";
                 statusEl.style.color = "#FF3B30";
-                resultEl.textContent = "";
+
             } catch (err) {
                 console.error("Mic access denied:", err);
                 statusEl.textContent = "Microphone access denied.";
             }
         }
 
-        function stopRecording() {
-            if (mediaRecorder && isRecording) {
-                mediaRecorder.stop();
-                isRecording = false;
-                recordBtn.classList.remove('recording');
-                statusEl.textContent = "Processing...";
-                statusEl.style.color = "#007AFF";
-                loader.style.display = "block";
-            }
+        function setupAudioProcessor() {
+            // Buffer size 4096 is a good balance
+            processor = audioContext.createScriptProcessor(4096, 1, 1);
+
+            input.connect(processor);
+            processor.connect(audioContext.destination);
+
+            processor.onaudioprocess = (e) => {
+                if (!isRecording || websocket.readyState !== WebSocket.OPEN) return;
+
+                const inputData = e.inputBuffer.getChannelData(0);
+                const downsampledBuffer = downsampleBuffer(inputData, audioContext.sampleRate, TARGET_SAMPLE_RATE);
+                const pcmData = floatTo16BitPCM(downsampledBuffer);
+
+                // Send raw int16 bytes
+                websocket.send(pcmData);
+            };
         }
 
-        async function sendAudio() {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-            const formData = new FormData();
-            formData.append("file", audioBlob, "recording.wav");
+        function floatTo16BitPCM(input) {
+            const output = new Int16Array(input.length);
+            for (let i = 0; i < input.length; i++) {
+                const s = Math.max(-1, Math.min(1, input[i]));
+                output[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+            }
+            return output;
+        }
 
-            const lang = langSelect.value;
-            const url = `/transcribe?language=${lang}`;
-
-            try {
-                const response = await fetch(url, {
-                    method: 'POST',
-                    body: formData
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    resultEl.textContent = data.transcription;
-                    statusEl.textContent = "Ready";
-                } else {
-                    resultEl.textContent = "Transcription failed.";
-                    statusEl.textContent = "Error";
+        function downsampleBuffer(buffer, sampleRate, outSampleRate) {
+            if (outSampleRate === sampleRate) {
+                return buffer;
+            }
+            if (outSampleRate > sampleRate) {
+                throw "Downsampling only";
+            }
+            const sampleRateRatio = sampleRate / outSampleRate;
+            const newLength = Math.round(buffer.length / sampleRateRatio);
+            const result = new Float32Array(newLength);
+            let offsetResult = 0;
+            let offsetBuffer = 0;
+            while (offsetResult < result.length) {
+                const nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+                // Simple averaging (box filter) to avoid aliasing
+                let accum = 0, count = 0;
+                for (let i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+                    accum += buffer[i];
+                    count++;
                 }
-            } catch (error) {
-                console.error("Error:", error);
-                resultEl.textContent = "Network error.";
-                statusEl.textContent = "Error";
-            } finally {
-                loader.style.display = "none";
-                statusEl.style.color = "#888";
+                result[offsetResult] = accum / count;
+                offsetResult++;
+                offsetBuffer = nextOffsetBuffer;
+            }
+            return result;
+        }
+
+        function stopAudioCapture() {
+            isRecording = false;
+            recordBtn.classList.remove('recording');
+            statusEl.textContent = "Connected (Monitoring)";
+            statusEl.style.color = "#007AFF";
+
+            // Stop tracks
+            if (globalStream) {
+                globalStream.getTracks().forEach(track => track.stop());
+            }
+            // Disconnect audio nodes
+            if (processor && input) {
+                input.disconnect();
+                processor.disconnect();
+            }
+            if (audioContext) {
+                audioContext.close();
             }
         }
     </script>

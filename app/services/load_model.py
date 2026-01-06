@@ -6,24 +6,31 @@ from app.utils.logger_utils import LOGGER
 from app.constants import log_msg
 
 class IndicConformerASR:
-    def __init__(self):
+    """
+    Handles loading and inference for the Indic Conformer ASR model.
+    
+    Attributes:
+        model_id (str): Hugging Face model ID.
+        device (str): Computation device ('cuda' or 'cpu').
+        model (AutoModel): Loaded ASR model instance.
+    """
+    def __init__(self) -> None:
         """
-        Initializes the IndicConformer ASR model resources.
-        Uses AutoModel to load the custom IndicASRModel (ONNX-based).
-        """
-        self.model_id = Config.MODEL_ID
-        self.device = Config.DEVICE_CUDA if torch.cuda.is_available() else Config.DEVICE_CPU
-        self.token = Config.HF_TOKEN
-
-        LOGGER.info(log_msg.ASR_MODEL_INIT.format(self.model_id, self.device))
+        Initializes the ASR model components.
         
+        Raises:
+            Exception: If model loading fails.
+        """
+        self.model_id: str = Config.MODEL_ID
+        self.device: str = Config.DEVICE_CUDA if torch.cuda.is_available() else Config.DEVICE_CPU
+        self.token: str = Config.HF_TOKEN
+
+        LOGGER.info(log_msg.LOG_ENTRY.format("IndicConformerASR.__init__", f"Device={self.device}"))
+
         if not self.token:
              LOGGER.warning("HF_TOKEN missing. Gated model access may fail.")
 
         try:
-            # The custom model code (model_onnx.py) manages its own downloads via snapshot_download.
-            # It unfortunately ignores cache_dir in its from_pretrained method, so it defaults to ~/.cache.
-            # We proceed with AutoModel as this is the only correct way to load this custom model.
             load_kwargs = {
                 "pretrained_model_name_or_path": self.model_id,
                 "trust_remote_code": True,
@@ -32,66 +39,68 @@ class IndicConformerASR:
 
             LOGGER.info(log_msg.ASR_MODEL_LOAD_START)
             self.model = AutoModel.from_pretrained(**load_kwargs)
-            
-            # The generic AutoModel wrapping might store the custom model in .model or match it directly
-            # Based on model_onnx.py, from_pretrained returns the instance directly.
-            
             LOGGER.info(log_msg.ASR_MODEL_LOAD_SUCCESS)
             
         except Exception as e:
-            LOGGER.error(log_msg.ASR_MODEL_LOAD_FAIL.format(e))
+            LOGGER.error(log_msg.ASR_MODEL_LOAD_FAIL.format(e), exc_info=True)
             raise e
+        
+        LOGGER.info(log_msg.LOG_EXIT.format("IndicConformerASR.__init__"))
+        return None
 
     def transcribe(self, audio_path: str, language_id: str = "hi") -> str:
         """
-        Transcribes the given audio file into text using the specified language.
-        
+        Transcribes a local audio file.
+
         Args:
-            audio_path: Absolute path to the audio file.
-            language_id: ISO language code (e.g., 'hi', 'ne', 'mai').
-            
+            audio_path (str): Absolute path to the audio file.
+            language_id (str): Language code (e.g., 'hi', 'ne', 'mai'). Defaults to "hi".
+
         Returns:
-            str: Transcribed text.
+            str: The transcribed text.
+
+        Raises:
+            Exception: If audio loading or inference fails.
         """
+        LOGGER.info(log_msg.LOG_ENTRY.format("transcribe", f"File={audio_path}, Lang={language_id}"))
         try:
             LOGGER.info(log_msg.ASR_PROCESSING_START.format(audio_path, language_id))
             
-            # Load audio using librosa
-            # The model's preprocessor expects 16kHz audio
+            # Load audio (16kHz required by model)
             audio_array, _ = librosa.load(audio_path, sr=Config.SAMPLING_RATE)
+            audio_tensor = torch.tensor(audio_array).unsqueeze(0) 
             
-            # Convert to torch tensor
-            audio_tensor = torch.tensor(audio_array).unsqueeze(0) # Batch dimension (1, T)
-            
-            return self.transcribe_tensor(audio_tensor, language_id)
+            result = self.transcribe_tensor(audio_tensor, language_id)
+            LOGGER.info(log_msg.LOG_EXIT.format("transcribe"))
+            return result
 
         except Exception as e:
-            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e))
+            LOGGER.error(log_msg.ASR_INFERENCE_FAIL.format(audio_path, e), exc_info=True)
             raise e
 
     def transcribe_tensor(self, audio_tensor: torch.Tensor, language_id: str = "hi") -> str:
         """
-        Transcribes the given audio tensor into text.
-        
+        Transcribes a raw audio tensor.
+
         Args:
-            audio_tensor: Tensor of shape (1, T) containing 16kHz audio.
-            language_id: ISO language code.
-            
+            audio_tensor (torch.Tensor): Audio data tensor.
+            language_id (str): Language code. Defaults to "hi".
+
         Returns:
-            str: Transcribed text.
+            str: The transcribed text, or empty string if no output.
+
+        Raises:
+            Exception: If inference fails.
         """
+        # Verbose logging suppressed for tensor to avoid log flooding in streams
         try:
-            # Perform inference
             transcription = self.model(audio_tensor, language_id)
             
             if not transcription:
-                # Instead of raising, we might return empty string for chunks meant to silence
-                # But for now, keeping consistency with original logic, or maybe just return empty string
                 return "" 
-
+            
             return transcription
             
         except Exception as e:
-            # We log but re-raise so the caller handles it
-            LOGGER.error(f"Tensor inference failed: {e}")
+            LOGGER.error(log_msg.LOG_ERROR.format("transcribe_tensor", str(e)), exc_info=True)
             raise e

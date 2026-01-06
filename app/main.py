@@ -17,11 +17,7 @@ async def lifespan(app: FastAPI):
         model_container["asr"] = IndicConformerASR()
     except Exception as e:
         LOGGER.critical(log_msg.STARTUP_FAILURE.format(e))
-        # We might want to re-raise to stop server start if critical model fails
-        # But keeping old behavior of just logging mostly, though user said "throw something"
-        # in general context. For lifespan, catching and logging is often safer than crash loop, 
-        # but if model is valid, it should work.
-        # I'll let it slide but ensure it's logged critical.
+        raise e
     
     yield
     

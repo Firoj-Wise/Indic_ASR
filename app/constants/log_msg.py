@@ -17,3 +17,27 @@ ERR_INTERNAL_PROCESSING = "Internal processing error."
 
 # Metrics
 WARN_EMPTY_TEXT_NORM = "Normalization received empty text or None. Returning empty string."
+
+# Generic Entry/Exit
+LOG_ENTRY = "Entry: {} | Args: {}"
+LOG_EXIT = "Exit: {} | Success"
+LOG_ERROR = "Error: {} | Message: {}"
+
+# WebSocket / Pipecat
+WS_CONNECTING = "Connecting to ASR WS: {}"
+WS_CONNECTED = "WebSocket Connected"
+WS_DISCONNECTED = "WebSocket Disconnected"
+WS_CLOSED_CLEANLY = "WebSocket closed cleanly"
+WS_CONNECTION_CLOSED = "ASR WS Connection closed by server"
+WS_RECEIVE_ERROR = "ASR WS Receive error: {}"
+WS_SEND_ERROR = "Failed to send audio frame: {}"
+WS_MSG_PARSE_ERROR = "Error parsing WS message: {}"
+
+# Tasks
+TASK_CANCELLED = "Task cancelled cleanly: {}"
+TASK_CANCEL_ERROR = "Error cancelling task: {}"
+
+# Config
+CONFIG_LANG_UPDATE = "Global language updated to: {}"
+CONFIG_INVALID_JSON = "Received invalid JSON config"
+CONFIG_PROCESS_ERROR = "Config processing error: {}"

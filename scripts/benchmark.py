@@ -31,7 +31,7 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
         asr_model = IndicConformerASR()
     except Exception as e:
         LOGGER.critical(f"Failed to initialize model: {e}")
-        return
+        raise e
 
     # Load Dataset
     # Streaming is safer for Colab RAM
@@ -42,7 +42,7 @@ def benchmark(language: str, subset: str = None, samples: int = 100, output_csv:
         ds = load_dataset(dataset_name, subset, split="test", streaming=True)
     except Exception as e:
         LOGGER.error(f"Failed to load dataset: {e}")
-        return
+        raise e
 
     results = []
     

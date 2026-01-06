@@ -1,4 +1,4 @@
-# Indic ASR API & Benchmarking
+# Indic Conformer ASR API & Collaborative Dashboard
 
 ![Python](https://img.shields.io/badge/Python-3.10-3776AB?style=flat-square&logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.95.1-009688?style=flat-square&logo=fastapi&logoColor=white)
@@ -8,87 +8,69 @@
 
 ## Overview
 
-This project provides a robust, containerized REST API for automatic speech recognition (ASR) focused on Indian languages. It encapsulates advanced acoustic modeling within a high-performance web server.
+High-performance, containerized ASR service for Indian languages (Nepali, Hindi, Maithili). Features a real-time **Collaborative Dashboard** where multiple clients (browsers, terminal scripts, robots) can stream audio and view synchronized transcripts instantly.
 
-The codebase has been refactored into a modular `app/` structure and includes a comprehensive **benchmarking suite** to evaluate model performance (CER/WER) on the `ai4bharat/indicvoices_r` dataset.
+## Architecture
 
-## Directory Structure
+-   **Backend**: FastAPI with WebSockets for low-latency streaming.
+-   **Model**: Custom hybrid Conformer-CTC model (ONNX/PyTorch).
+-   **Dashboard**: Real-time Web UI for monitoring and control.
+-   **Orchestration**: Pipecat integration for headless/terminal clients.
 
-```
-.
-├── app/
-│   ├── api/            # API Routers (Endpoints)
-│   ├── services/       # Business Logic (Model Loading)
-│   ├── utils/          # Config, Logging, Metrics
-│   ├── static/         # Frontend UI Assets
-│   └── main.py         # Application Entry Point
-├── scripts/
-│   └── benchmark.py    # Benchmarking Script
-├── models/             # Local Model Storage (Volume Mounted)
-├── logs/               # Application Logs
-├── colab_benchmark.ipynb # Google Colab Notebook
-├── compose.yaml        # Docker Compose
-└── pyproject.toml      # Project Dependencies (uv)
-```
+## Quick Start
 
-## Getting Started
-
-### 1. Local Development (uv)
-
-This project uses `uv` for ultra-fast dependency management.
-
+### 1. Run Server
+Mange dependencies with `uv` for speed.
 ```bash
-# 1. Install dependencies
 uv sync
-
-# 2. Run the server
-# The entry point is now app.main:app
-uv run uvicorn app.main:app --reload
-
-# 3. Access API
-# Swagger UI: http://localhost:8000/docs
-# Recorder UI: http://localhost:8000/ui
+uv run python -m app.main
 ```
 
-### 2. Docker Deployment
+### 2. Access Dashboard
+Open **[http://localhost:8000/ui](http://localhost:8000/ui)**
+-   **Monitor**: See transcripts from all connected sources.
+-   **Control**: Change the global language setting (syncs across all clients).
+-   **Test**: Use the browser microphone.
 
+### 3. Run Headless Client (Pipecat)
+Run the terminal client to simulate a robot or backend process.
 ```bash
-docker-compose up --build
+# Language flag is optional (defaults to global state or 'hi')
+uv run scripts/run_pipecat.py --language ne
 ```
-This mounts the local `models/` directory, persisting large weights across container restarts.
-
-## Benchmarking (New!)
-
-You can benchmark the model against the **IndicVoices** dataset (Nepali, Hindi, Maithili).
-
-### Run on Google Colab (Recommended)
-1.  Upload `colab_benchmark.ipynb` to Google Colab.
-2.  Follow the instructions in the notebook.
-3.  **Note**: Ensure you use a T4 GPU runtime.
-
-### Run Locally
-```bash
-# Example: Benchmark Nepali on the 'Nepali' subset
-python scripts/benchmark.py --language ne --subset Nepali --samples 50
-
-# Example: Benchmark Hindi
-python scripts/benchmark.py --language hi --subset Hindi
-```
-
-Results are saved to `benchmark_results.csv`.
+*Note: If testing locally, mute the browser microphone to avoid echo.*
 
 ## API Reference
 
-### Transcribe Audio
-**Endpoint**: `POST /transcribe`
+### Service Info
+**`GET /info`**
+Returns service metadata, version, and usage examples.
 
-Accepts a binary audio file (WAV, MP3, FLAC) and language code.
+### Streaming Transcription
+**`WS /transcribe/ws`**
+-   **Audio**: Binary PCM16 (16kHz, Mono).
+-   **Config**: JSON `{ "type": "config", "language": "ne" }`.
+-   **Output**: JSON `{ "type": "transcription", "text": "...", "source": "stream" }`.
 
-**Parameters**:
-- `file`: The audio file object.
-- `language`: `ne` (Nepali), `hi` (Hindi), `mai` (Maithili).
+### Batch Transcription
+**`POST /transcribe`**
+Upload a file for full transcription.
+```bash
+curl -X POST "http://localhost:8000/transcribe?language=ne" -F "file=@audio.wav"
+```
 
-### Health Check
-**Endpoint**: `GET /`
+## Benchmarking
 
-Returns the operational status.
+Evaluate CER/WER on IndicVoices dataset.
+```bash
+# Benchmark Nepali
+python scripts/benchmark.py --language ne --subset Nepali --samples 100
+```
+
+## Docker Deployment
+
+Production-ready Dockerfile included.
+```bash
+docker-compose up --build -d
+```
+Mounts `models/` volume for persistence.

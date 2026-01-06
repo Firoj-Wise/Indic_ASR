@@ -6,12 +6,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
     # uv configuration
-    # CHANGED: Disable bytecode compilation to speed up build (Torch is huge)
     UV_COMPILE_BYTECODE=0 \
     UV_LINK_MODE=copy
 
 # Install system dependencies
-# CHANGED: Added cache mounts for apt to speed up repeated installs
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
@@ -21,7 +19,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     ffmpeg \
     curl \
     git \
-    # We don't remove apt lists here to allow cache to work effectively in dev
     && rm -rf /var/lib/apt/lists/*
 
 # Install uv
@@ -33,8 +30,7 @@ WORKDIR /app
 # Copy dependency files
 COPY pyproject.toml uv.lock ./
 
-# Install dependencies
-# Use cache mount for faster builds
+# Install dependencies (frozen, no dev)
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-install-project --no-dev
 
@@ -45,7 +41,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-# Create models directory ensuring permissions
+# Create models directory
 RUN mkdir -p models && chmod 777 models
 
 # Expose port

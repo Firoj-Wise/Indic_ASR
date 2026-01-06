@@ -18,6 +18,24 @@ def home():
     return {
         "status": "online", 
         "message": "IndicConformer ASR API is ready.",
-        "ui_url": f"http://localhost:{Config.API_PORT}/ui", # Localhost hardcoded for browser access usually, or use host
-        "docs_url": f"http://localhost:{Config.API_PORT}/docs"
+        "ui": "http://localhost:8000/ui",
+        "docs": "http://localhost:8000/docs",
+        "info": "http://localhost:8000/info"
+    }
+
+@router.get("/info", tags=["Meta"], summary="Service Information")
+def info():
+    """
+    Returns API metadata and usage examples.
+    """
+    return {
+        "id": "indic-conformer-asr",
+        "type": "asr-service",
+        "name": "Indic Conformer ASR",
+        "version": "1.0.0",
+        "supported_languages": ["hi", "ne", "mai"],
+        "usage": {
+            "curl_example": "curl -X POST 'http://localhost:8000/transcribe?language=ne' -F 'file=@/path/to/audio.wav'",
+            "websocket_url": "ws://localhost:8000/transcribe/ws"
+        }
     }
