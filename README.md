@@ -4,7 +4,7 @@
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.95.1-009688?style=flat-square&logo=fastapi&logoColor=white)
 ![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat-square&logo=docker&logoColor=white)
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0-EE4C2C?style=flat-square&logo=pytorch&logoColor=white)
-![CUDA](https://img.shields.io/badge/CUDA-11.8-76B900?style=flat-square&logo=nvidia&logoColor=white)
+![CUDA](https://img.shields.io/badge/CUDA-12.4.1-76B900?style=flat-square&logo=nvidia&logoColor=white)
 
 ## Overview
 
@@ -32,7 +32,11 @@ Open **[http://localhost:8000/ui](http://localhost:8000/ui)**
 -   **Control**: Change the global language setting (syncs across all clients).
 -   **Test**: Use the browser microphone.
 
-### 3. Run Headless Client (Pipecat)
+### 3. Alternate Dashboard
+Open **[http://localhost:8000/ui-stop](http://localhost:8000/ui-stop)**
+-   **File Upload**: Speak and upload chunks for transcription (Stop-and-Go).
+
+### 4. Run Headless Client (Pipecat)
 Run the terminal client to simulate a robot or backend process.
 ```bash
 # Language flag is optional (defaults to global state or 'hi')

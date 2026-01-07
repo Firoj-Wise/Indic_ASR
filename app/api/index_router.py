@@ -13,6 +13,11 @@ async def read_index():
     # Assuming execution from project server root
     return FileResponse('app/static/index.html')
 
+@router.get("/ui-stop", tags=["UI"], include_in_schema=False)
+async def read_stop_index():
+    # Serves the file-upload based ASR UI
+    return FileResponse('app/static/index_upload.html')
+
 @router.get("/", tags=["Health"], summary="Health Check")
 def home():
     return {
