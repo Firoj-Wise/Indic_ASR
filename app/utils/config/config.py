@@ -13,7 +13,11 @@ class Config:
     # Force Hugging Face to use local models directory
     # This ensures "everything is in the container"
     os.environ["HF_HOME"] = str(BASE_DIR / "models")
-    
+
+    # Also we set torch hub and pyannote cache to models folder
+    os.environ["TORCH_HOME"] = str(BASE_DIR / "models" / "torch")
+    os.environ["PYANNOTE_CACHE"] = str(BASE_DIR / "models" / "pyannote")
+
     LOGS_DIR = BASE_DIR / "logs"
     TEMP_DIR = BASE_DIR / "temp_uploads"
 
@@ -33,3 +37,7 @@ class Config:
     API_VERSION = "1.0.0"
     API_HOST = "0.0.0.0"
     API_PORT = 8000
+
+    # Speaker Diarization Settings
+    DIARIZATION_ENABLED = os.getenv("DIARIZATION_ENABLED", "false").lower() == "true"
+    DIARIZATION_MODEL_ID = "pyannote/speaker-diarization-community-1"

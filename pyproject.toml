@@ -3,7 +3,7 @@ name = "indic-conformer-asr-testing"
 version = "0.1.0"
 description = "Indic Conformer ASR Testing API"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi",
     "uvicorn",
@@ -23,15 +23,13 @@ dependencies = [
     "pipecat-ai[local]>=0.0.36",
     "websockets>=15.0.1",
     "loguru>=0.7.0",
+    "pyannote-audio>=4.0.0",
 ]
-
 [tool.uv]
-
 [[tool.uv.index]]
-name = "pytorch"
-url = "https://download.pytorch.org/whl/cu124"
+name = "pytorch-cuda"
+url = "https://download.pytorch.org/whl/cu128"
 explicit = true
-
 [tool.uv.sources]
-torch = { index = "pytorch" }
-torchaudio = { index = "pytorch" }
+torch = { index = "pytorch-cuda" }
+torchaudio = { index = "pytorch-cuda" }

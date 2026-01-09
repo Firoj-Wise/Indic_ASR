@@ -5,6 +5,8 @@ import os
 import numpy as np
 import torch
 import json
+from pydantic import BaseModel
+from typing import Optional, List
 from app.utils.config.config import Config
 from app.utils.logger_utils import LOGGER
 from app.services.model_registry import model_container
@@ -14,6 +16,11 @@ from app.constants import log_msg
 router = APIRouter()
 
 # --- Global State & Connection Manager ---
+
+class DiarizedSegment(BaseModel):
+    speaker: str
+    start: float
+    end: float
 
 class GlobalAppState:
     def __init__(self):
@@ -178,9 +185,17 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
                 LOGGER.info(log_msg.WS_DISCONNECTED)
                 manager.disconnect(websocket)
                 break
+            except RuntimeError as e:
+                # Handle "Cannot call receive once disconnect received" gracefully
+                if "disconnect" in str(e).lower():
+                    LOGGER.info(log_msg.WS_DISCONNECTED)
+                    manager.disconnect(websocket)
+                    break
+                LOGGER.error(log_msg.WS_RECEIVE_ERROR.format(e))
+                break
             except Exception as e:
                 LOGGER.error(log_msg.WS_RECEIVE_ERROR.format(e))
-                await websocket.send_json({"type": "error", "message": "Internal processing error"})
+                # Don't try to send after disconnect
                 break
 
     except Exception as e:
@@ -190,3 +205,80 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
     finally:
         LOGGER.info(log_msg.LOG_EXIT.format("transcribe_audio_stream"))
     return None
+
+
+@router.post(
+    "/transcribe-diarized",
+    tags=["ASR"],
+    summary="Transcribe with Speaker Diarization",
+    response_description="Transcription with speaker segments"
+)
+async def transcribe_with_diarization(
+    file: UploadFile = File(...),
+    language: Language = Language.hindi,
+    num_speakers: Optional[int] = None,
+    min_speakers: Optional[int] = 2,
+    max_speakers: Optional[int] = 5
+) -> Dict[str, Any]:
+    """
+    Uploads an audio file and returns transcription with speaker diarization.
+    
+    Each segment includes which speaker spoke and the time range.
+    If diarization is unavailable, returns just the transcription.
+    """
+    asr_model = model_container.get("asr")
+    diarizer = model_container.get("diarizer")
+    
+    if not asr_model:
+        LOGGER.error(log_msg.ERR_ASR_MODEL_NOT_FOUND)
+        raise HTTPException(status_code=503, detail="ASR Model invalid or not loaded.")
+
+    file_ext = os.path.splitext(file.filename)[1] or ".wav"
+    temp_path = Config.TEMP_DIR / f"temp_{os.urandom(8).hex()}{file_ext}"
+
+    try:
+        LOGGER.info(f"Processing diarized transcription: {file.filename} [{language.value}]")
+        
+        # Save uploaded file
+        with open(temp_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Step 1: Get full transcription
+        transcription = asr_model.transcribe(str(temp_path), language_id=language.value)
+        
+        # Step 2: Get speaker diarization (if available)
+        segments = []
+        
+        if diarizer and diarizer.is_available():
+            diarization_result = diarizer.diarize(
+                str(temp_path), 
+                num_speakers=num_speakers,
+                min_speakers=min_speakers,
+                max_speakers=max_speakers
+            )
+            
+            for seg in diarization_result:
+                segments.append({
+                    "speaker": seg["speaker"],
+                    "start": seg["start"],
+                    "end": seg["end"]
+                })
+        
+        return {
+            "filename": file.filename,
+            "language": language.value,
+            "transcription": transcription,
+            "diarization": segments,
+            "speaker_count": len(set(s["speaker"] for s in segments)) if segments else 0
+        }
+
+    except Exception as e:
+        LOGGER.error(f"Diarized processing error: {e}")
+        raise HTTPException(status_code=500, detail=log_msg.ERR_INTERNAL_PROCESSING)
+        
+    finally:
+        if temp_path.exists():
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass

@@ -9,12 +9,15 @@ from app.services.load_model import IndicConformerASR
 from app.services.model_registry import model_container
 from app.api import index_router, asr_router
 from app.constants import log_msg
+from app.services.diarization import SpeakerDiarizer
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     LOGGER.info(log_msg.SERVER_STARTUP)
     try:
         model_container["asr"] = IndicConformerASR()
+        if Config.DIARIZATION_ENABLED:
+            model_container["diarizer"] = SpeakerDiarizer()
     except Exception as e:
         LOGGER.critical(log_msg.STARTUP_FAILURE.format(e))
         raise e
