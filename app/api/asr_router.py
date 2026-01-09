@@ -10,6 +10,7 @@ from typing import Optional, List
 from app.utils.config.config import Config
 from app.utils.logger_utils import LOGGER
 from app.services.model_registry import model_container
+from app.services.alignment import add_text_to_diarization_segments
 from app.constants.enums import Language
 from app.constants import log_msg
 
@@ -206,7 +207,6 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
         LOGGER.info(log_msg.LOG_EXIT.format("transcribe_audio_stream"))
     return None
 
-
 @router.post(
     "/transcribe-diarized",
     tags=["ASR"],
@@ -232,10 +232,8 @@ async def transcribe_with_diarization(
     if not asr_model:
         LOGGER.error(log_msg.ERR_ASR_MODEL_NOT_FOUND)
         raise HTTPException(status_code=503, detail="ASR Model invalid or not loaded.")
-
     file_ext = os.path.splitext(file.filename)[1] or ".wav"
     temp_path = Config.TEMP_DIR / f"temp_{os.urandom(8).hex()}{file_ext}"
-
     try:
         LOGGER.info(f"Processing diarized transcription: {file.filename} [{language.value}]")
         
@@ -243,11 +241,14 @@ async def transcribe_with_diarization(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Step 1: Get full transcription
-        transcription = asr_model.transcribe(str(temp_path), language_id=language.value)
+        # Step 1: Get transcription WITH word-level timestamps
+        transcription, word_timestamps = asr_model.transcribe_with_timestamps(
+            str(temp_path), 
+            language_id=language.value
+        )
         
         # Step 2: Get speaker diarization (if available)
-        segments = []
+        diarization_with_text = []
         
         if diarizer and diarizer.is_available():
             diarization_result = diarizer.diarize(
@@ -257,21 +258,25 @@ async def transcribe_with_diarization(
                 max_speakers=max_speakers
             )
             
-            for seg in diarization_result:
-                segments.append({
-                    "speaker": seg["speaker"],
-                    "start": seg["start"],
-                    "end": seg["end"]
-                })
+            # Build raw segments list
+            segments = [
+                {"speaker": seg["speaker"], "start": seg["start"], "end": seg["end"]}
+                for seg in diarization_result
+            ]
+            
+            # Step 3: Add text to each diarization segment
+            diarization_with_text = add_text_to_diarization_segments(
+                word_timestamps,
+                segments
+            )
         
         return {
             "filename": file.filename,
             "language": language.value,
             "transcription": transcription,
-            "diarization": segments,
-            "speaker_count": len(set(s["speaker"] for s in segments)) if segments else 0
+            "diarization": diarization_with_text,  # Now includes text per segment!
+            "speaker_count": len(set(s["speaker"] for s in diarization_with_text)) if diarization_with_text else 0
         }
-
     except Exception as e:
         LOGGER.error(f"Diarized processing error: {e}")
         raise HTTPException(status_code=500, detail=log_msg.ERR_INTERNAL_PROCESSING)

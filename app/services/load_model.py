@@ -104,3 +104,22 @@ class IndicConformerASR:
         except Exception as e:
             LOGGER.error(log_msg.LOG_ERROR.format("transcribe_tensor", str(e)), exc_info=True)
             raise e
+    
+    def transcribe_with_timestamps(self, audio_path: str, language_id: str = "hi") -> tuple:
+        """
+        Transcribes audio and returns word-level timestamps.
+        
+        Returns:
+            tuple: (transcription_text, word_timestamps)
+            where word_timestamps = [(word, start_sec, end_sec), ...]
+        """
+        audio_array, _ = librosa.load(audio_path, sr=Config.SAMPLING_RATE)
+        audio_tensor = torch.tensor(audio_array).unsqueeze(0)
+    
+        # Call model with compute_timestamps='w' for word-level
+        result = self.model(audio_tensor, language_id, decoding='ctc', compute_timestamps='w')
+    
+        transcription = result[0]
+        word_timestamps = result[1][0]  # [0] because batch size = 1
+    
+        return transcription, word_timestamps
