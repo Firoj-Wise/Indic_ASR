@@ -24,6 +24,8 @@ dependencies = [
     "websockets>=15.0.1",
     "loguru>=0.7.0",
     "pyannote-audio>=4.0.0",
+    "diart>=0.9.0",
+    "omegaconf>=2.3.0",
 ]
 [tool.uv]
 [[tool.uv.index]]

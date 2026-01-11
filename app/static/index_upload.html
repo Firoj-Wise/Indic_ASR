@@ -262,6 +262,13 @@
             </button>
         </div>
 
+        <div style="margin-top: 24px; display: flex; flex-direction: column; align-items: center; gap: 12px;">
+            <input type="file" id="fileInput" accept="audio/*" style="display: none;">
+            <button type="button" id="uploadBtn" class="diarize-btn" style="width: auto; padding: 12px 24px;">
+                📂 Upload Audio File
+            </button>
+        </div>
+
         <div id="status">Tap microphone to start</div>
         <div class="loader" id="loader"></div>
         <div id="result"></div>
@@ -274,6 +281,8 @@
         const resultEl = document.getElementById('result');
         const loader = document.getElementById('loader');
         const langSelect = document.getElementById('language');
+        const uploadBtn = document.getElementById('uploadBtn');
+        const fileInput = document.getElementById('fileInput');
 
         let mediaRecorder;
         let audioChunks = [];
@@ -286,6 +295,23 @@
             this.classList.toggle('active', diarizationEnabled);
             this.textContent = diarizationEnabled ? '✓ Diarize ON' : '🎤 Diarize';
             console.log('Diarization:', diarizationEnabled);
+        });
+
+        // File upload handling
+        uploadBtn.addEventListener('click', function() {
+            fileInput.value = ''; // Reset so change fires even for same file
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                const file = e.target.files[0];
+                statusEl.textContent = "Processing upload...";
+                statusEl.style.color = "#007AFF";
+                loader.style.display = "block";
+                resultEl.innerHTML = "";
+                sendAudio(file);
+            }
         });
 
         recordBtn.addEventListener('click', async function () {
@@ -306,7 +332,10 @@
                     audioChunks.push(event.data);
                 };
 
-                mediaRecorder.onstop = sendAudio;
+                mediaRecorder.onstop = function() {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    sendAudio(audioBlob);
+                };
 
                 mediaRecorder.start();
                 isRecording = true;
@@ -333,10 +362,10 @@
             }
         }
 
-        async function sendAudio() {
-            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+        async function sendAudio(audioBlob) {
             const formData = new FormData();
-            formData.append("file", audioBlob, "recording.wav");
+            const filename = audioBlob.name || "recording.wav";
+            formData.append("file", audioBlob, filename);
 
             const lang = langSelect.value;
 
@@ -362,18 +391,27 @@
                     if (diarizationEnabled && data.diarization && data.diarization.length > 0) {
                         displayDiarizedResult(data);
                     } else {
-                        resultEl.innerHTML = '<div style="padding: 8px;">' + data.transcription + '</div>';
+                        resultEl.innerHTML = '<div style="padding: 8px;">' + (data.transcription || '<i>No transcription generated.</i>') + '</div>';
                     }
                     statusEl.textContent = "Ready";
                 } else {
                     const errText = await response.text();
                     console.error('Error response:', errText);
-                    resultEl.innerHTML = '<div style="color: #FF3B30;">Transcription failed.</div>';
+                    // Try to parse JSON error from FastAPI
+                    let displayError = "Transcription failed.";
+                    try {
+                        const errJson = JSON.parse(errText);
+                        if(errJson.detail) displayError = "Error: " + errJson.detail;
+                    } catch(e) {
+                         displayError = "Error: " + (errText || response.statusText);
+                    }
+                    
+                    resultEl.innerHTML = `<div style="color: #FF3B30;">${displayError}</div>`;
                     statusEl.textContent = "Error";
                 }
             } catch (error) {
                 console.error("Error:", error);
-                resultEl.innerHTML = '<div style="color: #FF3B30;">Network error.</div>';
+                resultEl.innerHTML = `<div style="color: #FF3B30;">Network/Client Error: ${error.message}</div>`;
                 statusEl.textContent = "Error";
             } finally {
                 loader.style.display = "none";
@@ -384,28 +422,41 @@
         function displayDiarizedResult(data) {
             let html = '';
 
-            // Show full transcription
-            html += '<div style="padding: 12px; margin-bottom: 16px; background: rgba(0,122,255,0.1); border-radius: 8px;">';
-            html += '<strong>Transcription:</strong><br>' + data.transcription;
-            html += '</div>';
-
             // Show speaker count
-            html += '<div style="font-size: 13px; font-weight: 600; color: #666; margin-bottom: 8px;">';
-            html += 'Speakers detected: ' + (data.speaker_count || 0);
+            html += '<div style="font-size: 13px; font-weight: 600; color: #666; margin-bottom: 20px; text-align: center; padding: 8px; background: rgba(0,0,0,0.03); border-radius: 20px; display: inline-block; margin-left: 50%; transform: translateX(-50%);">';
+            html += '👥 Found ' + (data.speaker_count || 0) + ' speakers';
             html += '</div>';
 
-            // Show speaker segments
-            const colors = ['#007AFF', '#34C759', '#FF9500', '#AF52DE', '#FF3B30'];
+            const colors = ['#007AFF', '#34C759', '#FF9500', '#AF52DE', '#FF3B30', '#5856D6', '#FF2D55'];
+            
+            // Container for chat-like view
+            html += '<div style="display: flex; flex-direction: column; gap: 16px;">';
 
             data.diarization.forEach(function (seg) {
-                const speakerNum = parseInt(seg.speaker.replace('SPEAKER_', '')) || 0;
+                // Robust speaker index extraction
+                const speakerMatch = seg.speaker.match(/(\d+)/);
+                const speakerNum = speakerMatch ? parseInt(speakerMatch[0]) : 0;
                 const color = colors[speakerNum % colors.length];
-
-                html += '<div class="speaker-segment" style="border-left-color: ' + color + ';">';
-                html += '<div class="speaker-label" style="color: ' + color + ';">' + seg.speaker + '</div>';
-                html += '<div class="speaker-time">' + seg.start + 's - ' + seg.end + 's</div>';
+                
+                // Chat bubble layout
+                html += '<div style="display: flex; flex-direction: column; align-items: flex-start;">';
+                
+                // Label
+                html += '<div style="display: flex; align-items: center; margin-bottom: 4px; margin-left: 12px;">';
+                html += `<div style="width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 6px;"></div>`;
+                html += `<span style="font-size: 12px; font-weight: 600; color: #333;">${seg.speaker}</span>`;
+                html += `<span style="font-size: 11px; color: #999; margin-left: 8px;">${seg.start.toFixed(1)}s</span>`;
+                html += '</div>';
+                
+                // Bubble
+                html += '<div style="background: white; padding: 12px 16px; border-radius: 18px; border-top-left-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); border: 1px solid rgba(0,0,0,0.04); max-width: 90%;">';
+                html += `<div style="font-size: 15px; line-height: 1.5; color: #1c1c1e;">${seg.text || '<span style="color:#ccc; font-style:italic">No speech detected</span>'}</div>`;
+                html += '</div>';
+                
                 html += '</div>';
             });
+            
+            html += '</div>'; // End container
 
             resultEl.innerHTML = html;
         }

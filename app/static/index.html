@@ -58,10 +58,48 @@
             margin-bottom: 32px;
         }
 
+        /* Controls Row */
+        .controls-row {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 32px;
+            align-items: stretch;
+            justify-content: center;
+        }
+
         /* Language Selector */
         .select-wrapper {
-            position: relative;
-            margin-bottom: 32px;
+            flex: 1;
+            max-width: 200px;
+        }
+
+        /* Diarization Toggle Button */
+        .diarize-btn {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--gray-800);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .diarize-btn:hover {
+            background: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .diarize-btn.active {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
         }
 
         select {
@@ -188,6 +226,15 @@
                 transform: rotate(360deg);
             }
         }
+        
+        /* Added for segment styling */
+        .speaker-segment {
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.6);
+            border-left: 4px solid var(--primary);
+            text-align: left;
+        }
     </style>
 </head>
 
@@ -197,12 +244,17 @@
         <h1>IndicRecorder</h1>
         <p class="subtitle">AI-Powered Speech to Text</p>
 
-        <div class="select-wrapper">
-            <select id="language">
-                <option value="ne">Nepali (नेपाली)</option>
-                <option value="hi" selected>Hindi (हिंदी)</option>
-                <option value="mai">Maithili (मैथिली)</option>
-            </select>
+        <div class="controls-row">
+            <div class="select-wrapper">
+                <select id="language">
+                    <option value="ne">Nepali (नेपाली)</option>
+                    <option value="hi" selected>Hindi (हिंदी)</option>
+                    <option value="mai">Maithili (मैथिली)</option>
+                </select>
+            </div>
+            <button type="button" id="diarizeBtn" class="diarize-btn">
+                🎤 Diarize
+            </button>
         </div>
 
         <div class="mic-btn-container">
@@ -222,19 +274,48 @@
 
     <script>
         const recordBtn = document.getElementById('recordBtn');
+        const diarizeBtn = document.getElementById('diarizeBtn');
         const statusEl = document.getElementById('status');
         const resultEl = document.getElementById('result');
         const loader = document.getElementById('loader');
         const langSelect = document.getElementById('language');
 
         let isRecording = false;
+        let diarizationEnabled = false;
         let audioContext;
         let processor;
         let input;
         let globalStream;
         let websocket;
+        let lastSpeaker = null;
+        let lastSegment = null;
 
         const TARGET_SAMPLE_RATE = 16000;
+        
+        // Helper to generate consistent colors for speakers
+        function getSpeakerColor(speaker) {
+            if (!speaker) return '#888';
+            let hash = 0;
+            for (let i = 0; i < speaker.length; i++) {
+                hash = speaker.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+            return '#' + "00000".substring(0, 6 - c.length) + c;
+        }
+
+        // Toggle diarization
+        diarizeBtn.addEventListener('click', function () {
+            diarizationEnabled = !diarizationEnabled;
+            this.classList.toggle('active', diarizationEnabled);
+            this.textContent = diarizationEnabled ? '✓ Diarize ON' : '🎤 Diarize';
+            
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                websocket.send(JSON.stringify({
+                    type: "config",
+                    diarization: diarizationEnabled
+                }));
+            }
+        });
 
         // Connect immediately on load to receive broadcasts
         connectWebSocket();
@@ -273,15 +354,66 @@
                 const data = JSON.parse(event.data);
 
                 if (data.type === 'transcription' && data.text) {
-                    // Append new text with a space
-                    resultEl.textContent += (resultEl.textContent ? " " : "") + data.text;
+                    // Logic to display result
+                    const currentSpeaker = data.speaker;
+                    // If no speaker info (i.e. diarization off), treat as generic text append
+                    const showSpeaker = !!currentSpeaker; 
+
+                    // Check if we should merge with previous segment
+                    // Merge if: same speaker OR (neither has speaker info)
+                    if (lastSegment && (lastSpeaker === currentSpeaker || (!lastSpeaker && !currentSpeaker))) {
+                         const textDiv = lastSegment.querySelector('.segment-text');
+                         if (textDiv) {
+                             textDiv.textContent += " " + data.text;
+                         }
+                    } else {
+                        // Create new segment
+                        const div = document.createElement('div');
+                        div.className = 'speaker-segment';
+                        div.style.border = 'none';
+                        div.style.background = 'transparent';
+                        div.style.padding = '0';
+                        div.style.marginBottom = '12px';
+                        
+                        let headerHtml = '';
+                        if (showSpeaker) {
+                             const color = getSpeakerColor(currentSpeaker);
+                             headerHtml = `
+                                <div style="display: flex; align-items: center; margin-bottom: 4px; margin-left: 12px;">
+                                    <div style="width: 8px; height: 8px; border-radius: 50%; background: ${color}; margin-right: 6px;"></div>
+                                    <span style="font-size: 11px; font-weight: 600; color: #555;">${currentSpeaker}</span>
+                                </div>`;
+                        }
+
+                        // Bubble style
+                        div.innerHTML = `
+                            <div style="display: flex; flex-direction: column; align-items: flex-start;">
+                                ${headerHtml}
+                                <div style="background: white; padding: 10px 14px; border-radius: 18px; border-top-left-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); max-width: 95%;">
+                                    <div class="segment-text" style="font-size: 15px; line-height: 1.5; color: #1c1c1e;">${data.text}</div>
+                                </div>
+                            </div>
+                        `;
+                        
+                        resultEl.appendChild(div);
+                        lastSegment = div;
+                        lastSpeaker = currentSpeaker;
+                    }
+                    
                     resultEl.scrollTop = resultEl.scrollHeight;
                 }
 
-                if (data.type === 'config' && data.language) {
-                    // Update our dropdown to match server state
-                    langSelect.value = data.language;
-                    console.log("Synced language to:", data.language);
+                if (data.type === 'config') {
+                    if (data.language) {
+                        langSelect.value = data.language;
+                        console.log("Synced language to:", data.language);
+                    }
+                    if (data.diarization !== undefined) {
+                        diarizationEnabled = data.diarization;
+                        diarizeBtn.classList.toggle('active', diarizationEnabled);
+                        diarizeBtn.textContent = diarizationEnabled ? '✓ Diarize ON' : '🎤 Diarize';
+                        console.log("Synced diarization to:", data.diarization);
+                    }
                 }
             };
 

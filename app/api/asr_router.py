@@ -53,6 +53,7 @@ class ConnectionManager:
                 pass
 
 manager = ConnectionManager()
+from app.services.diarization import StreamingDiarizer
 
 
 @router.post("/transcribe", tags=["ASR"], summary="Transcribe Audio", response_description="Transcription result")
@@ -121,17 +122,34 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
         LOGGER.info(log_msg.LOG_ENTRY.format("transcribe_audio_stream", logger_context))
         
         current_lang = app_state.current_language
-        await websocket.send_json({"type": "config", "language": current_lang.value})
+        diarization_enabled = False # Default state for stream
+        
+        await websocket.send_json({
+            "type": "config", 
+            "language": current_lang.value,
+            "diarization": diarization_enabled
+        })
         
         asr_model = model_container.get("asr")
         if not asr_model:
             LOGGER.error(log_msg.ERR_ASR_MODEL_NOT_FOUND)
             await websocket.close(code=1011, reason="ASR Model not loaded")
             return
+            
+        # Initialize Streaming Diarizer for this connection
+        stream_diarizer = StreamingDiarizer()
 
         # Buffer for accumulating audio chunks
         audio_buffer = bytearray()
-        BUFFER_THRESHOLD = 64000 
+        # Diarization expects 5s chunks at 16k sample rate (80,000 samples)
+        # But ASR can work with less. We need a balance.
+        # However, Diart strictly enforces input size based on "step" (default 0.5s) or config
+        # Default diart step is 0.5s = 8000 samples? No.
+        # Error says "Expected 80000 samples per chunk". 80000 / 16000 = 5 seconds.
+        # It seems the pipeline is configured for 5s duration.
+        
+        BUFFER_THRESHOLD = 32000 # 2 seconds typically
+ 
         
         while True:
             try:
@@ -151,11 +169,16 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
                                 transcription = asr_model.transcribe_tensor(tensor, language_id=app_state.current_language.value)
                                 
                                 if transcription:
+                                    speaker_id = None
+                                    if diarization_enabled:
+                                        speaker_id = stream_diarizer.process(tensor)
+                                    
                                     await manager.broadcast({
                                         "type": "transcription",
                                         "text": transcription,
                                         "language": app_state.current_language.value,
-                                        "source": "stream" 
+                                        "source": "stream",
+                                        "speaker": speaker_id 
                                     })
                                     
                             except Exception as e:
@@ -168,14 +191,22 @@ async def transcribe_audio_stream(websocket: WebSocket, language: Language = Non
                         try:
                             data = json.loads(message["text"])
                             if data.get("type") == "config":
+                                # Handle language update
                                 new_lang = data.get("language")
+                                config_update = {"type": "config"}
+                                
                                 if new_lang in [l.value for l in Language]:
                                     LOGGER.info(log_msg.CONFIG_LANG_UPDATE.format(new_lang))
                                     app_state.current_language = Language(new_lang)
-                                    await manager.broadcast({
-                                        "type": "config",
-                                        "language": new_lang
-                                    })
+                                    config_update["language"] = new_lang
+                                
+                                # Handle diarization toggle
+                                if "diarization" in data:
+                                    diarization_enabled = bool(data["diarization"])
+                                    LOGGER.info(f"Stream Diarization set to: {diarization_enabled}")
+                                    config_update["diarization"] = diarization_enabled
+                                    
+                                await manager.broadcast(config_update)
                         except json.JSONDecodeError:
                             LOGGER.warning(log_msg.CONFIG_INVALID_JSON)
                         except Exception as e:
@@ -241,9 +272,15 @@ async def transcribe_with_diarization(
         with open(temp_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
+        # Optimize: Load audio ONCE
+        import librosa
+        # Load at 16k which is good for both
+        waveform_np, sr = librosa.load(str(temp_path), sr=16000, mono=True)
+
         # Step 1: Get transcription WITH word-level timestamps
+        # Pass loaded numpy array directly
         transcription, word_timestamps = asr_model.transcribe_with_timestamps(
-            str(temp_path), 
+            waveform_np, 
             language_id=language.value
         )
         
@@ -251,8 +288,12 @@ async def transcribe_with_diarization(
         diarization_with_text = []
         
         if diarizer and diarizer.is_available():
+            # Pass torch tensor to diarizer
+            waveform_t = torch.from_numpy(waveform_np).unsqueeze(0).float()
+            
             diarization_result = diarizer.diarize(
-                str(temp_path), 
+                waveform=waveform_t,
+                sample_rate=sr,
                 num_speakers=num_speakers,
                 min_speakers=min_speakers,
                 max_speakers=max_speakers

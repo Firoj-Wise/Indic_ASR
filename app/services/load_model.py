@@ -1,5 +1,6 @@
 import torch
 import librosa
+import numpy as np
 from transformers import AutoModel
 from app.utils.config.config import Config
 from app.utils.logger_utils import LOGGER
@@ -105,15 +106,22 @@ class IndicConformerASR:
             LOGGER.error(log_msg.LOG_ERROR.format("transcribe_tensor", str(e)), exc_info=True)
             raise e
     
-    def transcribe_with_timestamps(self, audio_path: str, language_id: str = "hi") -> tuple:
+    def transcribe_with_timestamps(self, audio: str | np.ndarray, language_id: str = "hi") -> tuple:
         """
         Transcribes audio and returns word-level timestamps.
+        
+        Args:
+            audio: str (path) or np.ndarray (waveform).
         
         Returns:
             tuple: (transcription_text, word_timestamps)
             where word_timestamps = [(word, start_sec, end_sec), ...]
         """
-        audio_array, _ = librosa.load(audio_path, sr=Config.SAMPLING_RATE)
+        if isinstance(audio, str):
+            audio_array, _ = librosa.load(audio, sr=Config.SAMPLING_RATE)
+        else:
+            audio_array = audio
+
         audio_tensor = torch.tensor(audio_array).unsqueeze(0)
     
         # Call model with compute_timestamps='w' for word-level
