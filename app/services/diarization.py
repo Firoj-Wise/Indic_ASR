@@ -167,14 +167,13 @@ class StreamingDiarizer:
                 
                 # Configure Diart Pipeline
                 # step=1.0 match the ASR buffer size for consistency (1s updates)
-                # max_speakers=10 as requested
                 config = SpeakerDiarizationConfig(
                     segmentation=segmentation,
                     embedding=embedding,
                     device=device,
                     step=1.0, 
-                    max_speakers=10,
                     sample_rate=Config.SAMPLING_RATE
+                    # max_speakers=10, # Removed to allow unbounded dynamic speaker tracking
                     # tau_active=0.6, # VAD threshold (default 0.6)
                     # rho_update=0.3, # Centroid update rate (default 0.3)
                 )

@@ -248,8 +248,8 @@ async def transcribe_with_diarization(
     file: UploadFile = File(...),
     language: Language = Language.hindi,
     num_speakers: Optional[int] = None,
-    min_speakers: Optional[int] = 2,
-    max_speakers: Optional[int] = 5
+    min_speakers: Optional[int] = None,
+    max_speakers: Optional[int] = None
 ) -> Dict[str, Any]:
     """
     Uploads an audio file and returns transcription with speaker diarization.

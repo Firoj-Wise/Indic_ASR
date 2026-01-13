@@ -372,7 +372,8 @@
             // Choose endpoint based on diarization toggle
             let url;
             if (diarizationEnabled) {
-                url = `/transcribe-diarized?language=${lang}&min_speakers=2&max_speakers=5`;
+                // Remove hardcoded limits so model auto-detects true speaker count
+                url = `/transcribe-diarized?language=${lang}`;
             } else {
                 url = `/transcribe?language=${lang}`;
             }

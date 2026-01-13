@@ -34,25 +34,52 @@ def add_text_to_diarization_segments(
              
     if not normalized_words:
         LOGGER.warning("No valid timestamps found after normalization (all None?)")
-        
-    result = []
+
+    # BETTER APPROACH: Single pass based on words to ensure no text is lost (orphaned).
+    # Logic: Iterate words, assign each to the "best" segment (closest).
     
-    for seg in diarization:
-        seg_start = seg["start"]
-        seg_end = seg["end"]
+    # Initialize buckets for each segment
+    segment_buckets = [[] for _ in range(len(diarization))]
+    
+    for w in normalized_words:
+        word_mid = (w["start"] + w["end"]) / 2
         
-        # Find all words whose midpoint falls within this segment
-        segment_words = []
-        for w in normalized_words:
-            word_mid = (w["start"] + w["end"]) / 2
-            if seg_start <= word_mid <= seg_end:
-                segment_words.append(w["word"])
+        best_seg_idx = -1
+        min_dist = float('inf')
+        
+        # Check all segments
+        for i, seg in enumerate(diarization):
+            start, end = seg["start"], seg["end"]
+            
+            if start <= word_mid <= end:
+                # Perfect match (containment) 
+                dist = 0
+            else:
+                # Distance to boundary
+                dist = min(abs(word_mid - start), abs(word_mid - end))
+            
+            # Update best
+            if dist < min_dist:
+                min_dist = dist
+                best_seg_idx = i
+            elif dist == min_dist and dist == 0:
+                pass
+        
+        # Assign word to best bucket
+        # We assign it even if distance is large, because preserving text is priority over silence.
+        if best_seg_idx != -1:
+            segment_buckets[best_seg_idx].append(w["word"])
+            
+    # Build final result list
+    result = []
+    for i, seg in enumerate(diarization):
+        text = " ".join(segment_buckets[i])
         
         result.append({
             "speaker": seg["speaker"],
             "start": seg["start"],
             "end": seg["end"],
-            "text": " ".join(segment_words)
+            "text": text
         })
-    
+
     return result
