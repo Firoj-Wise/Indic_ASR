@@ -24,8 +24,9 @@ dependencies = [
     "websockets>=15.0.1",
     "loguru>=0.7.0",
     "openai-whisper",
-    "indic-transliteration",
+    "ai4bharat-transliteration",
     "ffmpeg-python",
+    "huggingface-hub",
 ]
 
 [tool.uv]

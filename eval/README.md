@@ -13,26 +13,57 @@ This directory contains scripts to evaluate the ASR model on English audio input
     -   Compare hypothesis (Model Output) vs Ground Truth.
     -   Calculate CER/WER.
 
+## Datasets
+
+This pipeline uses open-source, public datasets to ensure ease of reproduction:
+1.  **LibriSpeech**: Clean, audiobook-based English speech.
+2.  **Google FLEURS**: Diverse, multi-domain English speech (US variety).
+
+No special access tokens are required for these datasets.
+
 ## Running on Colab
 
 If you are running this in Google Colab, you can use the following commands:
 
 ```bash
 # 1. Install Dependencies
-pip install openai-whisper indic-transliteration ffmpeg-python jiwer soundfile
+!apt-get install -y libsndfile1 ffmpeg
+!pip install openai-whisper ai4bharat-transliteration ffmpeg-python jiwer soundfile torchcodec huggingface-hub
 
-# 2. Fetch Audio (e.g. 500 samples)
-python eval/fetch_audio.py --samples 500 --output_dir eval/audio_samples
+# 2. Login to HF (Important for Uploading Results ONLY)
+import os
+from huggingface_hub import login
+token = "hf_..." # Replace with your token
+login(token=token)
+os.environ["HF_TOKEN"] = token
 
-# 3. Generate Ground Truth Manifest
-python eval/generate_ground_truth.py --input_dir eval/audio_samples --output_manifest eval/manifest.jsonl
+# 3. Fetch Audio (e.g. 500 samples)
+# Uses LibriSpeech + FLEURS (Public)
+!python eval/fetch_audio.py --samples 500
 
-# 4. Run Benchmark
-python eval/benchmark_eval.py --manifest eval/manifest.jsonl --output eval/results.csv
+# 4. Generate Ground Truth & Run Benchmark (3-Way Evaluation)
+
+# --- 1. NEPALI (ne) ---
+!python eval/generate_ground_truth.py --language ne --output_manifest eval/manifest_ne.jsonl
+!python eval/benchmark_eval.py --manifest eval/manifest_ne.jsonl --output eval/results_ne.csv --language ne
+
+# --- 2. HINDI (hi) ---
+!python eval/generate_ground_truth.py --language hi --output_manifest eval/manifest_hi.jsonl
+!python eval/benchmark_eval.py --manifest eval/manifest_hi.jsonl --output eval/results_hi.csv --language hi
+
+# --- 3. MAITHILI (mai) ---
+!python eval/generate_ground_truth.py --language mai --output_manifest eval/manifest_mai.jsonl
+!python eval/benchmark_eval.py --manifest eval/manifest_mai.jsonl --output eval/results_mai.csv --language mai
+
+# 5. Upload Results to Hugging Face
+!python eval/push_to_hub.py --results_csv eval/results_ne.csv --repo_id <your-username>/indic-asr-eval-ne
+!python eval/push_to_hub.py --results_csv eval/results_hi.csv --repo_id <your-username>/indic-asr-eval-hi
+!python eval/push_to_hub.py --results_csv eval/results_mai.csv --repo_id <your-username>/indic-asr-eval-mai
 ```
 
 ## Scripts
 
--   `fetch_audio.py`: Downloads and filters audio from Hugging Face Datasets.
+-   `fetch_audio.py`: Downloads and filters audio from Hugging Face Datasets (LibriSpeech/CommonVoice).
 -   `generate_ground_truth.py`: Uses Whisper + Transliteration to create the reference text.
 -   `benchmark_eval.py`: Runs the standard evaluation loop.
+-   `push_to_hub.py`: Uploads results and audio to HF Hub for visualization.

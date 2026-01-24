@@ -13,28 +13,33 @@ def fetch_audio(output_dir, samples_per_source=250):
     
     print(f"Fetching audio to {output_dir}...")
 
-    # Source 1: Common Voice (General, diverse accents/microphones)
-    # We use 'en' language. Streaming to avoid huge downloads.
-    print("Loading Common Voice (en)...")
-    try:
-        cv_ds = load_dataset("mozilla-foundation/common_voice_17_0", "en", split="train", streaming=True, trust_remote_code=True)
-        process_dataset(cv_ds, output_dir, "cv", samples_per_source)
-    except Exception as e:
-        print(f"Error loading Common Voice: {e}")
+    print(f"Fetching audio to {output_dir}...")
 
-    # Source 2: LibriSpeech (Clean, Audiobooks)
-    # Using 'clean' split
+    # Source 1: LibriSpeech (Clean, Audiobooks) - Reliable & Clean
     print("Loading LibriSpeech (clean)...")
     try:
-        ls_ds = load_dataset("librispeech_asr", "clean", split="test", streaming=True, trust_remote_code=True)
+        ls_ds = load_dataset("librispeech_asr", "clean", split="test", streaming=True)
         process_dataset(ls_ds, output_dir, "ls", samples_per_source)
     except Exception as e:
         print(f"Error loading LibriSpeech: {e}")
+
+    # Source 2: Google FLEURS (Diverse, Multi-domain)
+    # Using 'en_us' subset. It is open and diverse, unlike Common Voice which is now gated/restricted.
+    print("Loading Google FLEURS (en_us)...")
+    try:
+        # subset="en_us", split="test"
+        fl_ds = load_dataset("google/fleurs", "en_us", split="test", streaming=True)
+        process_dataset(fl_ds, output_dir, "fl", samples_per_source)
+    except Exception as e:
+        print(f"Error loading FLEURS: {e}")
+        
+    print("Done fetching audio.")
         
     print("Done fetching audio.")
 
 def process_dataset(dataset, output_dir, prefix, limit):
     count = 0
+    # Use iter explicitly
     iterator = iter(dataset)
     
     pbar = tqdm(total=limit, desc=f"Saving {prefix}")
@@ -43,11 +48,29 @@ def process_dataset(dataset, output_dir, prefix, limit):
         try:
             sample = next(iterator)
             
-            # Common Voice & LibriSpeech structure usually has 'audio': {'array': ..., 'sampling_rate': ...}
+            # Ensure audio is loaded/decoded
+            if 'audio' not in sample:
+                continue
+                
             audio = sample['audio']
-            original_text = sample.get('sentence') or sample.get('text') or ""
             
-            # Filter out very short audio or empty text
+            # audio['array'] might be None if decoding failed
+            if audio.get('array') is None:
+                continue
+            
+            # Text field varies by dataset
+            # LibriSpeech: 'text'
+            # Common Voice: 'sentence'
+            # FLEURS: 'transcription' or 'raw_transcription'
+            original_text = (
+                sample.get('text') or 
+                sample.get('sentence') or 
+                sample.get('transcription') or 
+                sample.get('raw_transcription') or 
+                ""
+            )
+            
+            # Filter out very short audio
             if len(audio['array']) < 16000 * 1: # < 1 second
                 continue
                 
