@@ -9,10 +9,9 @@ Methodology:
     Since large-scale "English Audio -> Devanagari Text" datasets are non-standard, we synthesize 
     a high-quality evaluation set using a two-stage pseudo-labeling pipeline:
 
-    1.  **High-Fidelity ASR (Source Transcription)**:
-        We employ OpenAI's Whisper (Transformer-based encoder-decoder) to recover the source English 
-        text from the audio. Whisper is chosen for its robustness to accents and noise, providing 
-        a strong "Silver Standard" English transcript.
+    1.  **Read Source Transcription**:
+        We read the "Silver Standard" English transcriptions directly from the dataset (e.g. LibriSpeech)
+        which are extracted during the fetch stage.
 
     2.  **Neural Transliteration (Script Conversion)**:
         We utilize `ai4bharat/IndicXlit` (Transformer-based sequence-to-sequence model) to convert 
@@ -23,42 +22,55 @@ Methodology:
     This pipeline minimizes the domain gap between "Transliterated English" and "Native Indic Script".
 """
 
+
 import argparse
 import os
 import json
 import torch
-import whisper
 from tqdm import tqdm
-from ai4bharat.transliteration import XlitEngine
+try:
+    from ai4bharat.transliteration import XlitEngine
+except ImportError:
+    XlitEngine = None
 
-def generate_ground_truth(input_dir, output_manifest, model_size="base", lang_code="ne"):
+def generate_ground_truth(input_dir, output_manifest, lang_code="ne"):
     """
     Executes the ground truth generation pipeline.
     
     Args:
-        input_dir (str): Directory containing source .wav files.
+        input_dir (str): Directory containing source .wav files and matching .txt transcripts.
         output_manifest (str): Path to write the resulting JSONL manifest.
-        model_size (str): Whisper model capacity (tiny|base|small|medium|large).
         lang_code (str): Target language code (ne/hi/mai).
     """
-    print(f"Initializing Whisper ASR Model (Backbone: {model_size})...")
-    
-    # Device agnostic loading (Priority: CUDA > CPU)
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    try:
-        model = whisper.load_model(model_size, device=device)
-    except Exception as e:
-        print(f"Critical Error: Failed to load Whisper backbone: {e}")
-        return
-
     # IndicXlit uses 2-letter codes mostly (ne, hi, mai) which match our input.
     xlit_code = lang_code 
     
     print(f"Initializing IndicXlit Engine (Target: {xlit_code})...")
+    
+    if XlitEngine is None:
+        print("Error: ai4bharat-transliteration library not found. Please install it.")
+        return
+
     try:
         # Initialize XlitEngine. Note: This downloads models on first run.
         # Beam width 10 gives better quality.
         xlit_engine = XlitEngine(xlit_code, beam_width=10)
+    except ValueError as e:
+        if "mutable default" in str(e) and "fairseq" in str(e):
+             print(f"\n{'='*60}")
+             print("CRITICAL COMPATIBILITY ERROR DETECTED")
+             print(f"Error: {e}")
+             print("-" * 60)
+             print("CAUSE: You are running Python 3.9+ (likely 3.11/3.12) with an old version of Fairseq.")
+             print("FIX: You MUST upgrade fairseq from source to fix this 'dataclass' issue.")
+             print("Run this command in your terminal/notebook cell:")
+             print("\n    pip install --upgrade git+https://github.com/facebookresearch/fairseq.git\n")
+             print("Then restart the kernel and try again.")
+             print("="*60 + "\n")
+             return
+        else:
+            print(f"Critical Error: Failed to initialize IndicXlit: {e}")
+            return
     except Exception as e:
         print(f"Critical Error: Failed to initialize IndicXlit: {e}")
         return
@@ -71,12 +83,21 @@ def generate_ground_truth(input_dir, output_manifest, model_size="base", lang_co
     
     for filename in tqdm(audio_files, desc="Synthesizing Ground Truth"):
         file_path = os.path.join(input_dir, filename)
+        txt_filename = filename.replace(".wav", ".txt")
+        txt_path = os.path.join(input_dir, txt_filename)
         
         try:
-            # Stage 1: Source Transcription (English)
-            result = model.transcribe(file_path, language="en")
-            en_text = result["text"].strip()
-            
+            # Stage 1: Load Source Transcription (English) from .txt
+            if not os.path.exists(txt_path):
+                # print(f"Warning: Missing transcript for {filename}, skipping.")
+                continue
+                
+            with open(txt_path, "r", encoding="utf-8") as f:
+                en_text = f.read().strip()
+                
+            if not en_text:
+                continue
+
             # Stage 2: Target Transliteration (English -> Devanagari)
             # Using Neural Transliteration from AI4Bharat
             ne_text = xlit_engine.translit_sentence(en_text)
@@ -92,7 +113,7 @@ def generate_ground_truth(input_dir, output_manifest, model_size="base", lang_co
                 "audio_path": os.path.abspath(file_path),
                 "en_text": en_text,       # Reference English
                 "ne_text": ne_text,       # Reference Devanagari (Neural Xlit)
-                "source": "pipeline_whisper_indicxlit"
+                "source": "pipeline_librispeech_indicxlit"
             }
             results.append(manifest_entry)
             
@@ -113,9 +134,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate Ground Truth")
     parser.add_argument("--input_dir", type=str, default="eval/audio_samples", help="Input audio directory")
     parser.add_argument("--output_manifest", type=str, default="eval/manifest.jsonl", help="Output JSONL")
-    parser.add_argument("--model_size", type=str, default="base", help="Whisper model size")
+    # Removed --model_size as Whisper is no longer used
     parser.add_argument("--language", type=str, default="ne", help="Target Indic Language (ne/hi/mai)")
     
     args = parser.parse_args()
     
-    generate_ground_truth(args.input_dir, args.output_manifest, args.model_size, args.language)
+    generate_ground_truth(args.input_dir, args.output_manifest, args.language)
+

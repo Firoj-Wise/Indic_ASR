@@ -23,7 +23,7 @@ dependencies = [
     "pipecat-ai[local]>=0.0.36",
     "websockets>=15.0.1",
     "loguru>=0.7.0",
-    "openai-whisper",
+
     "ai4bharat-transliteration",
     "ffmpeg-python",
     "huggingface-hub",
