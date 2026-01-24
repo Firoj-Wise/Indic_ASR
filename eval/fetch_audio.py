@@ -1,4 +1,3 @@
-```python
 import argparse
 import os
 import io
@@ -163,4 +162,3 @@ if __name__ == "__main__":
     token = args.token or os.environ.get("HF_TOKEN")
     
     fetch_audio(args.output_dir, samples_per_source=per_source, token=token)
-```
