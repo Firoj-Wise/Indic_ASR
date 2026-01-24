@@ -27,11 +27,16 @@ import argparse
 import os
 import json
 import torch
+
+import argparse
+import os
+import json
+import torch
 from tqdm import tqdm
 try:
-    from ai4bharat.transliteration import XlitEngine
+    from google.transliteration import transliterate_text
 except ImportError:
-    XlitEngine = None
+    transliterate_text = None
 
 def generate_ground_truth(input_dir, output_manifest, lang_code="ne"):
     """
@@ -42,39 +47,17 @@ def generate_ground_truth(input_dir, output_manifest, lang_code="ne"):
         output_manifest (str): Path to write the resulting JSONL manifest.
         lang_code (str): Target language code (ne/hi/mai).
     """
-    # IndicXlit uses 2-letter codes mostly (ne, hi, mai) which match our input.
-    xlit_code = lang_code 
+    print(f"Initializing Transliteration Engine (Target: {lang_code})...")
     
-    print(f"Initializing IndicXlit Engine (Target: {xlit_code})...")
-    
-    if XlitEngine is None:
-        print("Error: ai4bharat-transliteration library not found. Please install it.")
+    if transliterate_text is None:
+        print("Error: google-transliteration-api library not found. Please install it.")
         return
 
-    try:
-        # Initialize XlitEngine. Note: This downloads models on first run.
-        # Beam width 10 gives better quality.
-        xlit_engine = XlitEngine(xlit_code, beam_width=10)
-    except ValueError as e:
-        if "mutable default" in str(e) and "fairseq" in str(e):
-             print(f"\n{'='*60}")
-             print("CRITICAL COMPATIBILITY ERROR DETECTED")
-             print(f"Error: {e}")
-             print("-" * 60)
-             print("CAUSE: You are running Python 3.9+ (likely 3.11/3.12) with an old version of Fairseq.")
-             print("FIX: You MUST upgrade fairseq from source to fix this 'dataclass' issue.")
-             print("Run this command in your terminal/notebook cell:")
-             print("\n    pip install --upgrade git+https://github.com/facebookresearch/fairseq.git\n")
-             print("Then restart the kernel and try again.")
-             print("="*60 + "\n")
-             return
-        else:
-            print(f"Critical Error: Failed to initialize IndicXlit: {e}")
-            return
-    except Exception as e:
-        print(f"Critical Error: Failed to initialize IndicXlit: {e}")
-        return
-
+    # Check for Maithili support or fallback
+    # Google Transliteration API supports 'hi', 'ne', etc. 
+    # 'mai' (Maithili) might fall back to 'hi' if not explicitly supported, or we can try 'hi' script.
+    # We will pass the code as is.
+    
     # Filter for valid audio extensions
     audio_files = [f for f in os.listdir(input_dir) if f.endswith(".wav")]
     results = []
@@ -98,22 +81,25 @@ def generate_ground_truth(input_dir, output_manifest, lang_code="ne"):
             if not en_text:
                 continue
 
-            # Stage 2: Target Transliteration (English -> Devanagari)
-            # Using Neural Transliteration from AI4Bharat
-            ne_text = xlit_engine.translit_sentence(en_text)
-            
-            # Since translit_sentence might return a dict or string depending on version,
-            # usually it returns specific top string if beam is handled, or we check docs.
-            # Standard generic usage: returns transliterated string.
-            if isinstance(ne_text, dict):
-                 # Handle if it returns dictionary (some versions do keys as language)
-                 ne_text = ne_text.get(xlit_code, en_text) # Fallback
 
+            # Stage 2: Target Transliteration (English -> Devanagari)
+            # Using Google Transliteration API (Unofficial)
+            # It returns the exact transliterated string directly
+            try:
+                ne_text = transliterate_text(en_text, lang_code=lang_code)
+            except Exception as e:
+                # Fallback if specific code failed, or let it fail
+                # For Maithili (mai), if not supported, we can fallback to Hindi (hi) which is same script
+                if lang_code == "mai":
+                     ne_text = transliterate_text(en_text, lang_code="hi")
+                else:
+                    raise e
+            
             manifest_entry = {
                 "audio_path": os.path.abspath(file_path),
                 "en_text": en_text,       # Reference English
-                "ne_text": ne_text,       # Reference Devanagari (Neural Xlit)
-                "source": "pipeline_librispeech_indicxlit"
+                "ne_text": ne_text,       # Reference Devanagari 
+                "source": "pipeline_librispeech_google_xlit"
             }
             results.append(manifest_entry)
             

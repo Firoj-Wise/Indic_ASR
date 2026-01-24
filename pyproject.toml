@@ -24,7 +24,7 @@ dependencies = [
     "websockets>=15.0.1",
     "loguru>=0.7.0",
 
-    "ai4bharat-transliteration",
+    "google-transliteration-api",
     "ffmpeg-python",
     "huggingface-hub",
 ]
