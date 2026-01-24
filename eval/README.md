@@ -23,6 +23,21 @@ This pipeline uses open-source, public datasets to ensure ease of reproduction:
 
 No special access tokens are required for these datasets.
 
+## Evaluation Resources
+
+You can reproduce the evaluation results or explore the data using the following resources:
+
+-   **Colab Notebook**: [Run Evaluation on Colab](https://colab.research.google.com/drive/1Tpz1ntTeml-vcz5GZ14SoRjvlQIZrfpL?usp=sharing)
+-   **Results & Datasets (HuggingFace)**:
+    -   [Maithili (mai)](https://huggingface.co/datasets/SamaFiroz/indic-asr-eval-results-mai)
+    -   [Hindi (hi)](https://huggingface.co/datasets/SamaFiroz/indic-asr-eval-results-hi)
+    -   [Nepali (ne)](https://huggingface.co/datasets/SamaFiroz/indic-asr-eval-results-ne)
+
+## Challenges & Limitations
+
+-   **Google Transliteration API**: During our evaluation, we observed that the Google Transliteration API did not always produce the expected quality of transliteration for our specific use cases. While it serves as a baseline, we are actively exploring alternative transliteration engines to improve the ground truth generation quality.
+
+
 ## Running on Colab
 
 If you are running this in Google Colab, you can use the following commands:
@@ -30,7 +45,7 @@ If you are running this in Google Colab, you can use the following commands:
 ```bash
 # 1. Install Dependencies
 !apt-get install -y libsndfile1 ffmpeg
-!pip install google-transliteration-api ffmpeg-python jiwer soundfile huggingface-hub
+!pip install google-transliteration-api ffmpeg-python jiwer soundfile huggingface-hub onnxruntime-gpu
 
 # 2. Login to HF (Important for Uploading Results ONLY)
 import os
