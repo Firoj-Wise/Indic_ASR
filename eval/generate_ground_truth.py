@@ -13,11 +13,9 @@ Methodology:
         We read the "Silver Standard" English transcriptions directly from the dataset (e.g. LibriSpeech)
         which are extracted during the fetch stage.
 
-    2.  **Neural Transliteration (Script Conversion)**:
-        We utilize `ai4bharat/IndicXlit` (Transformer-based sequence-to-sequence model) to convert 
-        the English text into Devanagari. Unlike rule-based systems (ITRANS), IndicXlit captures 
-        context-aware phonetics and common usage (e.g., "Bank" -> "बैंक", not just "बंक"). 
-        This provides a much more natural "Ground Truth" for mixed-lingual scenarios.
+    2.  **Google Transliteration (Script Conversion)**:
+        We utilize the `google-transliteration-api` (unofficial) to convert 
+        the English text into Devanagari. It is robust and avoids complex dependency issues.
 
     This pipeline minimizes the domain gap between "Transliterated English" and "Native Indic Script".
 """

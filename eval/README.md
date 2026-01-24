@@ -5,10 +5,11 @@ This directory contains scripts to evaluate the ASR model on English audio input
 ## Workflow
 
 
+
 1.  **Fetch Audio**: Download diverse English audio samples (LibriSpeech) along with their ground truth English text.
 2.  **Generate Ground Truth**: 
     -   Read English transcripts from fetched dataset (Silver Standard).
-    -   Transliterate English Text -> Devanagari using `indic-transliteration` (Ground Truth).
+    -   Transliterate English Text -> Devanagari using `google-transliteration-api` (Ground Truth).
 3.  **Benchmark**:
     -   Run local `IndicConformerASR` model on the audio.
     -   Compare hypothesis (Model Output) vs Ground Truth.
@@ -28,10 +29,8 @@ If you are running this in Google Colab, you can use the following commands:
 
 ```bash
 # 1. Install Dependencies
-# Upgrade Fairseq from source to fix Python 3.11+ dataclass compatibility issues (IMPORTANT)
-!pip install --upgrade git+https://github.com/facebookresearch/fairseq.git
 !apt-get install -y libsndfile1 ffmpeg
-!pip install ai4bharat-transliteration ffmpeg-python jiwer soundfile huggingface-hub
+!pip install google-transliteration-api ffmpeg-python jiwer soundfile huggingface-hub
 
 # 2. Login to HF (Important for Uploading Results ONLY)
 import os
@@ -67,6 +66,6 @@ os.environ["HF_TOKEN"] = token
 ## Scripts
 
 -   `fetch_audio.py`: Downloads and filters audio from Hugging Face Datasets (LibriSpeech). Saves .wav and .txt (transcript) files.
--   `generate_ground_truth.py`: Uses English text + Neural Transliteration to create the reference Devanagari text.
+-   `generate_ground_truth.py`: Uses English text + Google Transliteration API to create the reference Devanagari text.
 -   `benchmark_eval.py`: Runs the standard evaluation loop.
 -   `push_to_hub.py`: Uploads results and audio to HF Hub for visualization.
