@@ -29,6 +29,7 @@ If you are running this in Google Colab, you can use the following commands:
 # 1. Install Dependencies
 # Downgrade pip to avoid omegaconf metadata error (fairseq issue)
 !pip install "pip<24.1"
+!pip uninstall -y torchcodec # Ensure this is gone
 !apt-get install -y libsndfile1 ffmpeg
 !pip install openai-whisper ai4bharat-transliteration ffmpeg-python jiwer soundfile huggingface-hub
 
@@ -41,7 +42,7 @@ os.environ["HF_TOKEN"] = token
 
 # 3. Fetch Audio (e.g. 500 samples)
 # Uses LibriSpeech + FLEURS (Public)
-!python eval/fetch_audio.py --samples 500
+!python eval/fetch_audio.py --samples 500 --token "$token"
 
 # 4. Generate Ground Truth & Run Benchmark (3-Way Evaluation)
 
