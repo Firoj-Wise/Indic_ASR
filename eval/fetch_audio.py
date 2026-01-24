@@ -26,29 +26,22 @@ def fetch_audio(output_dir, samples_per_source=250, token=None):
         ls_ds = load_dataset("librispeech_asr", "clean", split="test", streaming=True)
         # Force decode=False immediately to avoid backend (torchcodec) issues
         ls_ds = ls_ds.cast_column("audio", Audio(decode=False))
-        process_dataset(ls_ds, output_dir, "ls", samples_per_source)
+        process_dataset(ls_ds, output_dir, "ls_clean", samples_per_source)
     except Exception as e:
-        print(f"Error loading LibriSpeech: {e}")
+        print(f"Error loading LibriSpeech Clean: {e}")
 
-    # Source 2: Common Voice 11.0 (Diverse)
-    print("Loading Common Voice 11.0 (en)...")
+    # Source 2: LibriSpeech (Other) - More diverse/noisy/accented
+    print("Loading LibriSpeech (other)...")
     try:
-        # User reported 'trust_remote_code' is not supported for this dataset in newer 'datasets' lib.
-        # Removing the flag.
-        cv_ds = load_dataset("mozilla-foundation/common_voice_11_0", "en", split="train", streaming=True)
-        cv_ds = cv_ds.cast_column("audio", Audio(decode=False))
-        process_dataset(cv_ds, output_dir, "cv", samples_per_source)
+        ls_other = load_dataset("librispeech_asr", "other", split="test", streaming=True)
+        ls_other = ls_other.cast_column("audio", Audio(decode=False))
+        process_dataset(ls_other, output_dir, "ls_other", samples_per_source)
     except Exception as e:
-        print(f"Error loading Common Voice 11.0: {e}")
-        print("Falling back to LibriSpeech 'other' for diversity...")
-        try:
-             ls_other = load_dataset("librispeech_asr", "other", split="test", streaming=True)
-             ls_other = ls_other.cast_column("audio", Audio(decode=False))
-             process_dataset(ls_other, output_dir, "ls_other", samples_per_source)
-        except Exception as ex:
-            print(f"Error loading fallback: {ex}")
+        print(f"Error loading LibriSpeech Other: {e}")
         
     print("Done fetching audio.")
+    # Force exit to avoid Colab/Threading cleanup crashes (PyGILState_Release)
+    os._exit(0)
 
 def process_dataset(dataset, output_dir, prefix, limit):
     count = 0

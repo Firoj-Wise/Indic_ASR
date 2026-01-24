@@ -51,17 +51,10 @@ def generate_ground_truth(input_dir, output_manifest, model_size="base", lang_co
         print(f"Critical Error: Failed to load Whisper backbone: {e}")
         return
 
-    # Map ASR codes (ne, hi, mai) to IndicXlit codes (nep, hin, mai)
-    # Source: User provided & verified against IndicXlit docs
-    code_map = {
-        "ne": "nep",
-        "hi": "hin",
-        "mai": "mai"
-    }
+    # IndicXlit uses 2-letter codes mostly (ne, hi, mai) which match our input.
+    xlit_code = lang_code 
     
-    xlit_code = code_map.get(lang_code, lang_code) # Default to input if not mapped
-    
-    print(f"Initializing IndicXlit Engine (Input: {lang_code} -> Target: {xlit_code})...")
+    print(f"Initializing IndicXlit Engine (Target: {xlit_code})...")
     try:
         # Initialize XlitEngine. Note: This downloads models on first run.
         # Beam width 10 gives better quality.

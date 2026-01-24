@@ -16,8 +16,8 @@ This directory contains scripts to evaluate the ASR model on English audio input
 ## Datasets
 
 This pipeline uses open-source, public datasets to ensure ease of reproduction:
-1.  **LibriSpeech**: Clean, audiobook-based English speech.
-2.  **Common Voice 11.0**: Diverse, global English speech (Historical Open Release).
+1.  **LibriSpeech Clean**: High-quality audiobook speech.
+2.  **LibriSpeech Other**: More challenging speech (accents/noise) to test robustness.
 
 No special access tokens are required for these datasets.
 
