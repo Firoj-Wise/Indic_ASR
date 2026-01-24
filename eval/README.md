@@ -17,7 +17,7 @@ This directory contains scripts to evaluate the ASR model on English audio input
 
 This pipeline uses open-source, public datasets to ensure ease of reproduction:
 1.  **LibriSpeech**: Clean, audiobook-based English speech.
-2.  **Google FLEURS**: Diverse, multi-domain English speech (US variety).
+2.  **Common Voice 11.0**: Diverse, global English speech (Historical Open Release).
 
 No special access tokens are required for these datasets.
 
@@ -27,8 +27,10 @@ If you are running this in Google Colab, you can use the following commands:
 
 ```bash
 # 1. Install Dependencies
+# Downgrade pip to avoid omegaconf metadata error (fairseq issue)
+!pip install "pip<24.1"
 !apt-get install -y libsndfile1 ffmpeg
-!pip install openai-whisper ai4bharat-transliteration ffmpeg-python jiwer soundfile torchcodec huggingface-hub
+!pip install openai-whisper ai4bharat-transliteration ffmpeg-python jiwer soundfile huggingface-hub
 
 # 2. Login to HF (Important for Uploading Results ONLY)
 import os

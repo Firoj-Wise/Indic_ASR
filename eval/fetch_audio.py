@@ -23,15 +23,16 @@ def fetch_audio(output_dir, samples_per_source=250):
     except Exception as e:
         print(f"Error loading LibriSpeech: {e}")
 
-    # Source 2: Google FLEURS (Diverse, Multi-domain)
-    # Using 'en_us' subset. It is open and diverse, unlike Common Voice which is now gated/restricted.
-    print("Loading Google FLEURS (en_us)...")
+    # Source 2: Common Voice 11.0 (Diverse, Historical, Open)
+    # CV 17.0 is gated/empty, FLEURS has script issues. 
+    # CV 11.0 is a stable historical release available on HF.
+    print("Loading Common Voice 11.0 (en)...")
     try:
-        # subset="en_us", split="test"
-        fl_ds = load_dataset("google/fleurs", "en_us", split="test", streaming=True)
-        process_dataset(fl_ds, output_dir, "fl", samples_per_source)
+        # trust_remote_code=True might be needed for CV scripts
+        cv_ds = load_dataset("mozilla-foundation/common_voice_11_0", "en", split="train", streaming=True, trust_remote_code=True)
+        process_dataset(cv_ds, output_dir, "cv", samples_per_source)
     except Exception as e:
-        print(f"Error loading FLEURS: {e}")
+        print(f"Error loading Common Voice 11.0: {e}")
         
     print("Done fetching audio.")
         
